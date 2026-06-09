@@ -1,0 +1,332 @@
+"use client";
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { useKodingku } from '@/context/KodingkuContext';
+import Link from 'next/link';
+import { isMock, supabase } from '@/lib/supabase';
+import { Plus, ArrowUp, ArrowDown, MessageSquare, X, Eye, EyeOff, ShieldAlert, Flame, Clock, HelpCircle, ChevronRight, TrendingUp, Users, FileText, Award } from 'lucide-react';
+import GithubPreviewCard from '@/components/GithubPreviewCard';
+import LiveCodePreview from '@/components/LiveCodePreview';
+
+type SortMode = 'hot' | 'newest' | 'unanswered';
+
+export default function Home() {
+  const { currentUser, users, threads, replies, voteThread, createThread, switchUserProfile, registerUserProfile, activeTagFilter, setActiveTagFilter, searchQuery, logout } = useKodingku();
+
+  const [showModal, setShowModal] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newContent, setNewContent] = useState('');
+  const [newGithub, setNewGithub] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>(['Showcase']);
+  const [includeSandbox, setIncludeSandbox] = useState(false);
+  const [sandboxHtml, setSandboxHtml] = useState('<h1>Hello Kodingku</h1>');
+  const [sandboxCss, setSandboxCss] = useState('h1 { color: #3b82f6; }');
+  const [sandboxJs, setSandboxJs] = useState('');
+  const [editorTab, setEditorTab] = useState<'write'|'preview'>('write');
+  const [sortMode, setSortMode] = useState<SortMode>('hot');
+
+  // Registration (mock only)
+  const [showRegForm, setShowRegForm] = useState(false);
+  const [regUsername, setRegUsername] = useState('');
+  const [regDisplay, setRegDisplay] = useState('');
+  const [regTech, setRegTech] = useState('');
+
+  const [revealedNSFC, setRevealedNSFC] = useState<Record<string, boolean>>({});
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => { setReady(true); }, []);
+
+  const handleCreateThreadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim() || !newContent.trim()) return;
+    const sandbox = includeSandbox ? { html: sandboxHtml, css: sandboxCss, js: sandboxJs } : undefined;
+    const success = await createThread(newTitle, newContent, selectedTags, sandbox, newGithub);
+    if (success) { setNewTitle(''); setNewContent(''); setNewGithub(''); setIncludeSandbox(false); setShowModal(false); }
+  };
+
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regUsername.trim() || !regDisplay.trim()) return;
+    registerUserProfile(regUsername, regDisplay, regTech.split(',').map(t => t.trim()).filter(Boolean));
+    setShowRegForm(false); setRegUsername(''); setRegDisplay(''); setRegTech('');
+  };
+
+  const handleTagToggle = (tag: string) => {
+    if (selectedTags.includes(tag)) { if (selectedTags.length > 1) setSelectedTags(prev => prev.filter(t => t !== tag)); }
+    else setSelectedTags(prev => [...prev, tag]);
+  };
+
+  const filteredThreads = useMemo(() => {
+    return threads.filter(t => {
+      const matchesTag = activeTagFilter === 'ALL' || t.tags.some(tag => tag.toUpperCase() === activeTagFilter.toUpperCase());
+      const matchesSearch = !searchQuery.trim() || 
+        t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        t.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (t.author?.username || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.author?.displayName || '').toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesTag && matchesSearch;
+    });
+  }, [threads, activeTagFilter, searchQuery]);
+
+  const sortedThreads = [...filteredThreads].sort((a, b) => {
+    if (sortMode === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (sortMode === 'unanswered') {
+      const aR = replies.filter(r => r.threadId === a.id).length;
+      const bR = replies.filter(r => r.threadId === b.id).length;
+      return aR - bR;
+    }
+    return (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes);
+  });
+
+  if (!ready) return (
+    <main className="flex-grow flex items-center justify-center p-4">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-accent-blue/30 border-t-accent-blue rounded-full animate-spin" />
+        <p className="text-text-muted text-sm">Loading...</p>
+      </div>
+    </main>
+  );
+
+  return (
+    <main className="flex-grow flex flex-col max-w-6xl w-full mx-auto p-4 md:p-6 space-y-6 animate-fade-in">
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+        {/* Feed Column */}
+        <div className="lg:col-span-3 space-y-4">
+
+          {/* Filter Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1 overflow-x-auto text-xs">
+              {['ALL', 'Tutor', 'Showcase', 'Meme', 'Ask', 'Bug'].map((tag) => (
+                <button key={tag} onClick={() => setActiveTagFilter(tag)}
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+                    activeTagFilter === tag ? 'bg-accent-blue/10 text-accent-blue font-medium' : 'text-text-muted hover:text-text-primary hover:bg-hover-bg'
+                  }`}>
+                  {tag === 'ALL' ? 'All' : `#${tag}`}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Sort */}
+              <div className="flex items-center bg-bg-card card-border rounded-lg overflow-hidden text-xs">
+                {([['hot','Flame'],['newest','Clock'],['unanswered','HelpCircle']] as [SortMode,string][]).map(([mode]) => (
+                  <button key={mode} onClick={() => setSortMode(mode)}
+                    className={`px-3 py-1.5 capitalize transition-colors cursor-pointer ${sortMode === mode ? 'bg-accent-blue/10 text-accent-blue font-medium' : 'text-text-muted hover:text-text-primary'}`}>
+                    {mode}
+                  </button>
+                ))}
+              </div>
+              {currentUser && (
+                <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer">
+                  <Plus size={14} /> New Post
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Thread List */}
+          <div className="space-y-3">
+            {sortedThreads.length === 0 ? (
+              <div className="p-12 card-border rounded-xl text-center text-text-muted text-sm">No threads found for this filter.</div>
+            ) : (
+              sortedThreads.map((thread) => {
+                const isNSFC = thread.tags.some(t => t.toLowerCase() === 'nsfc');
+                const showNSFC = revealedNSFC[thread.id] || false;
+                const replyCount = replies.filter(r => r.threadId === thread.id).length;
+
+                return (
+                  <article key={thread.id} className="p-4 bg-bg-card card-border rounded-xl card-hover flex gap-4">
+                    {/* Vote */}
+                    <div className="flex flex-col items-center gap-0.5 pt-1">
+                      <button onClick={() => voteThread(thread.id, 'up')} disabled={!currentUser}
+                        className={`vote-btn p-1 rounded-md hover:bg-hover-bg ${!currentUser ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'} text-text-muted hover:text-accent-success`}>
+                        <ArrowUp size={16} />
+                      </button>
+                      <span className="text-xs font-semibold text-text-primary py-0.5">{thread.upvotes - thread.downvotes}</span>
+                      <button onClick={() => voteThread(thread.id, 'down')} disabled={!currentUser}
+                        className={`vote-btn p-1 rounded-md hover:bg-hover-bg ${!currentUser ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'} text-text-muted hover:text-accent-danger`}>
+                        <ArrowDown size={16} />
+                      </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-grow min-w-0">
+                      <div className="flex items-center gap-2 text-xs text-text-muted mb-1.5 flex-wrap">
+                        <span className="font-medium text-text-secondary">{thread.author?.displayName}</span>
+                        <span>@{thread.author?.username}</span>
+                        <span className="text-text-muted">·</span>
+                        <span>{new Date(thread.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                      </div>
+
+                      <Link href={`/thread/${thread.id}`} className="block group">
+                        <h2 className="text-sm font-semibold text-text-primary group-hover:text-accent-blue transition-colors mb-1.5 line-clamp-1 flex items-center gap-1">
+                          {thread.title}
+                          <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity text-accent-blue" />
+                        </h2>
+                      </Link>
+
+                      {isNSFC && !showNSFC ? (
+                        <div className="my-2 p-4 border border-accent-danger/20 bg-accent-danger/5 rounded-lg text-center">
+                          <ShieldAlert size={18} className="text-accent-danger mx-auto mb-2" />
+                          <p className="text-xs text-accent-danger font-medium">NSFC Content</p>
+                          <button onClick={() => setRevealedNSFC(p => ({...p, [thread.id]: true}))}
+                            className="mt-2 text-xs text-accent-danger/80 hover:text-accent-danger underline cursor-pointer">Reveal</button>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-xs text-text-muted line-clamp-2 mb-2 leading-relaxed">{thread.content.length > 200 ? `${thread.content.substring(0, 200)}...` : thread.content}</p>
+                          {thread.githubUrl && <div onClick={(e) => e.stopPropagation()}><GithubPreviewCard url={thread.githubUrl} /></div>}
+                          {thread.codePreview && <div onClick={(e) => e.stopPropagation()} className="max-w-xl"><LiveCodePreview initialHtml={thread.codePreview.html} initialCss={thread.codePreview.css} initialJs={thread.codePreview.js} editable={false} /></div>}
+                          {isNSFC && showNSFC && (
+                            <button onClick={() => setRevealedNSFC(p => ({...p, [thread.id]: false}))} className="text-[10px] text-accent-danger hover:underline cursor-pointer flex items-center gap-1 mt-1">
+                              <EyeOff size={10} /> Hide
+                            </button>
+                          )}
+                        </>
+                      )}
+
+                      <div className="mt-3 flex items-center justify-between pt-2 border-t border-border-default">
+                        <div className="flex items-center gap-1.5">
+                          {thread.tags.map(t => (
+                            <span key={t} className={`text-[10px] px-2 py-0.5 rounded-md font-medium ${
+                              t.toLowerCase() === 'nsfc' ? 'bg-accent-danger/10 text-accent-danger'
+                              : t.toLowerCase() === 'tutor' ? 'bg-accent-success/10 text-accent-success'
+                              : 'bg-accent-blue/10 text-accent-blue'
+                            }`}>#{t}</span>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {currentUser?.role === 'admin' && (
+                            <button onClick={async (e) => { e.preventDefault(); e.stopPropagation(); if (confirm("Delete this thread?")) { await supabase.from('threads').delete().eq('id', thread.id); } }}
+                              className="text-[10px] text-accent-danger hover:underline cursor-pointer">Delete</button>
+                          )}
+                          <Link href={`/thread/${thread.id}`} className="flex items-center gap-1 text-xs text-text-muted hover:text-text-primary transition-colors">
+                            <MessageSquare size={12} /> {replyCount}
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Sidebar */}
+        <aside className="space-y-4 text-sm">
+          <section className="p-4 bg-bg-card card-border rounded-xl">
+            <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5"><TrendingUp size={13} /> Stats</h3>
+            <div className="space-y-2.5 text-xs text-text-muted">
+              <div className="flex justify-between"><span>Members</span><span className="text-text-primary font-medium">{users.length}</span></div>
+              <div className="flex justify-between"><span>Threads</span><span className="text-text-primary font-medium">{threads.length}</span></div>
+              <div className="flex justify-between"><span>Replies</span><span className="text-text-primary font-medium">{replies.length}</span></div>
+            </div>
+          </section>
+
+          <section className="p-4 bg-bg-card card-border rounded-xl">
+            <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5"><Award size={13} /> Leaderboard</h3>
+            <div className="space-y-2.5">
+              {[...users].sort((a, b) => b.reputation - a.reputation).slice(0, 5).map((u, i) => (
+                <div key={u.id} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-text-muted w-4">{i + 1}.</span>
+                    <Link href={`/profile/${u.username}`} className="text-text-primary hover:text-accent-blue transition-colors font-medium">@{u.username}</Link>
+                  </div>
+                  <span className="text-text-muted">{u.reputation} pts</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="p-4 bg-bg-card card-border rounded-xl">
+            <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">About</h3>
+            <div className="text-xs text-text-muted space-y-2 leading-relaxed">
+              <p>Kodingku supports Markdown in threads. Tutorial posts tagged <span className="text-accent-success font-medium">#Tutor</span> earn <span className="text-accent-success font-medium">+15 pts</span>.</p>
+              <p>Upvotes grant <span className="text-accent-success font-medium">+10 pts</span>, downvotes subtract <span className="text-accent-danger font-medium">-2 pts</span>.</p>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      {/* Create Thread Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-bg-card card-border rounded-xl p-6 flex flex-col max-h-[90vh] shadow-2xl" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-semibold text-text-primary">New Thread</h2>
+              <button onClick={() => setShowModal(false)} className="text-text-muted hover:text-text-primary cursor-pointer"><X size={18} /></button>
+            </div>
+
+            <form onSubmit={handleCreateThreadSubmit} className="space-y-4 overflow-y-auto pr-1 flex-grow">
+              <div>
+                <label className="block text-xs text-text-muted mb-1.5">Title</label>
+                <input type="text" required placeholder="What's on your mind?" value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
+                  className="w-full bg-bg-app border border-border-default p-2.5 rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent-blue" />
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <button type="button" onClick={() => setEditorTab('write')} className={`text-xs px-2 py-1 rounded-md cursor-pointer ${editorTab === 'write' ? 'bg-accent-blue/10 text-accent-blue font-medium' : 'text-text-muted hover:text-text-primary'}`}>Write</button>
+                  <button type="button" onClick={() => setEditorTab('preview')} className={`text-xs px-2 py-1 rounded-md cursor-pointer ${editorTab === 'preview' ? 'bg-accent-blue/10 text-accent-blue font-medium' : 'text-text-muted hover:text-text-primary'}`}>Preview</button>
+                </div>
+                {editorTab === 'write' ? (
+                  <textarea required placeholder="Write your content (Markdown supported)..." value={newContent} onChange={(e) => setNewContent(e.target.value)} rows={6}
+                    className="w-full bg-bg-app border border-border-default p-2.5 rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent-blue" />
+                ) : (
+                  <div className="w-full bg-bg-app border border-border-default p-3 rounded-lg text-sm text-text-primary min-h-[150px] prose prose-invert max-w-none">
+                    {newContent || <span className="text-text-muted italic">Nothing to preview yet...</span>}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs text-text-muted mb-1.5">GitHub Link (optional)</label>
+                <input type="url" placeholder="https://github.com/owner/repo" value={newGithub} onChange={(e) => setNewGithub(e.target.value)}
+                  className="w-full bg-bg-app border border-border-default p-2.5 rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent-blue" />
+              </div>
+
+              <div>
+                <span className="block text-xs text-text-muted mb-1.5">Tags</span>
+                <div className="flex flex-wrap gap-2">
+                  {['Tutor', 'Showcase', 'Meme', 'Ask', 'Bug', 'NSFC'].map((tag) => (
+                    <button type="button" key={tag} onClick={() => handleTagToggle(tag)}
+                      className={`px-2.5 py-1 rounded-lg text-xs transition-colors cursor-pointer ${
+                        selectedTags.includes(tag) ? 'bg-accent-blue/10 text-accent-blue font-medium border border-accent-blue/20' : 'bg-bg-app border border-border-default text-text-muted hover:text-text-primary'
+                      }`}>#{tag}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border border-border-default rounded-lg p-3 bg-bg-app/40">
+                <label className="flex items-center gap-2 text-xs text-text-primary cursor-pointer select-none">
+                  <input type="checkbox" checked={includeSandbox} onChange={(e) => setIncludeSandbox(e.target.checked)} className="accent-accent-blue rounded" />
+                  Include Code Playground
+                </label>
+                {includeSandbox && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 text-xs">
+                    {[['HTML', sandboxHtml, setSandboxHtml], ['CSS', sandboxCss, setSandboxCss], ['JS', sandboxJs, setSandboxJs]].map(([label, val, setter]: any) => (
+                      <div key={label}>
+                        <span className="text-text-muted text-[10px] uppercase">{label}</span>
+                        <textarea value={val} onChange={(e: any) => setter(e.target.value)} rows={3}
+                          className="w-full bg-bg-app border border-border-default p-2 rounded-lg font-mono text-[11px] focus:outline-none focus:border-accent-blue mt-1" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-end gap-3">
+                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-text-muted hover:text-text-primary transition-colors cursor-pointer">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer">Publish</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
