@@ -54,6 +54,9 @@ CREATE TABLE public.votes (
   CONSTRAINT unique_user_thread_vote UNIQUE (user_id, thread_id)
 );
 
+-- Add solved_reply_id relation to threads (Q&A solved feature)
+ALTER TABLE public.threads ADD COLUMN solved_reply_id UUID REFERENCES public.replies(id) ON DELETE SET NULL;
+
 -- ----------------------------------------------------
 -- DATABASE TRIGGERS
 -- ----------------------------------------------------

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Reply as ReplyType, UserProfile } from '../lib/mockData';
-import { CornerDownRight, MessageSquare, Send, AlertCircle } from 'lucide-react';
+import { CornerDownRight, MessageSquare, Send, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface ReplyNodeProps {
@@ -10,9 +10,12 @@ interface ReplyNodeProps {
   currentUser: (UserProfile & { role?: 'user' | 'admin' }) | null;
   onAddReply: (parentId: string, content: string) => void;
   depth: number;
+  threadAuthorId: string;
+  solvedReplyId?: string;
+  onMarkSolved: (replyId: string | null) => void;
 }
 
-function ReplyNode({ reply, currentUser, onAddReply, depth }: ReplyNodeProps) {
+function ReplyNode({ reply, currentUser, onAddReply, depth, threadAuthorId, solvedReplyId, onMarkSolved }: ReplyNodeProps) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [replyText, setReplyText] = useState('');
 
@@ -25,24 +28,46 @@ function ReplyNode({ reply, currentUser, onAddReply, depth }: ReplyNodeProps) {
 
   return (
     <div className="mt-3">
-      <div className="p-3 bg-bg-card card-border rounded-xl card-hover">
+      <div className={`p-3 bg-bg-card card-border rounded-xl card-hover transition-all ${
+        solvedReplyId === reply.id ? 'border-accent-success/40 shadow-[0_0_12px_rgba(74,222,128,0.06)] bg-accent-success/[0.01]' : ''
+      }`}>
         <div className="flex items-center justify-between mb-1.5 text-xs text-text-muted">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-text-secondary">{reply.author?.displayName || reply.userId}</span>
             <span>@{reply.author?.username || 'user'}</span>
             <span className="bg-bg-elevated px-1.5 py-0.5 rounded-md text-[10px]">{reply.author?.reputation || 0} pts</span>
+            
+            {solvedReplyId === reply.id && (
+              <span className="inline-flex items-center gap-0.5 text-[9px] bg-accent-success/15 text-accent-success px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider">
+                <CheckCircle2 size={9} /> Solution
+              </span>
+            )}
           </div>
           <span className="text-[11px]">{new Date(reply.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
 
         <p className="text-sm text-text-primary pl-0.5 break-words whitespace-pre-wrap leading-relaxed">{reply.content}</p>
 
-        <div className="mt-2.5 flex items-center gap-3 text-xs text-text-muted">
+        <div className="mt-2.5 flex items-center gap-3 text-xs text-text-muted flex-wrap">
           {currentUser && (
             <button onClick={() => setShowReplyForm(!showReplyForm)} className="flex items-center gap-1 hover:text-accent-blue transition-colors cursor-pointer">
               <CornerDownRight size={11} /> Reply
             </button>
           )}
+
+          {/* Mark / Unmark Solution Button (Only for Thread Author) */}
+          {currentUser && currentUser.id === threadAuthorId && (
+            <button 
+              onClick={() => onMarkSolved(solvedReplyId === reply.id ? null : reply.id)}
+              className={`flex items-center gap-1 transition-colors cursor-pointer ${
+                solvedReplyId === reply.id ? 'text-accent-danger hover:text-accent-danger/80' : 'text-accent-success hover:text-accent-success/80'
+              }`}
+            >
+              <CheckCircle2 size={11} />
+              <span>{solvedReplyId === reply.id ? 'Unmark Solution' : 'Mark as Solution'}</span>
+            </button>
+          )}
+
           {currentUser?.role === 'admin' && (
             <button onClick={async () => { if (confirm("Delete this reply?")) { await supabase.from('replies').delete().eq('id', reply.id); } }}
               className="text-accent-danger hover:underline cursor-pointer">Delete</button>
@@ -65,7 +90,16 @@ function ReplyNode({ reply, currentUser, onAddReply, depth }: ReplyNodeProps) {
       {reply.replies && reply.replies.length > 0 && (
         <div className="pl-5 border-l border-border-default mt-1 ml-3">
           {reply.replies.map((childReply) => (
-            <ReplyNode key={childReply.id} reply={childReply} currentUser={currentUser} onAddReply={onAddReply} depth={depth + 1} />
+            <ReplyNode 
+              key={childReply.id} 
+              reply={childReply} 
+              currentUser={currentUser} 
+              onAddReply={onAddReply} 
+              depth={depth + 1} 
+              threadAuthorId={threadAuthorId}
+              solvedReplyId={solvedReplyId}
+              onMarkSolved={onMarkSolved}
+            />
           ))}
         </div>
       )}
@@ -77,9 +111,12 @@ interface ReplyTreeProps {
   replies: ReplyType[];
   currentUser: (UserProfile & { role?: 'user' | 'admin' }) | null;
   onAddReply: (parentId: string | null, content: string) => void;
+  threadAuthorId: string;
+  solvedReplyId?: string;
+  onMarkSolved: (replyId: string | null) => void;
 }
 
-export default function ReplyTree({ replies, currentUser, onAddReply }: ReplyTreeProps) {
+export default function ReplyTree({ replies, currentUser, onAddReply, threadAuthorId, solvedReplyId, onMarkSolved }: ReplyTreeProps) {
   const [rootReplyText, setRootReplyText] = useState('');
 
   // O(N) tree builder
@@ -136,7 +173,16 @@ export default function ReplyTree({ replies, currentUser, onAddReply }: ReplyTre
         {tree.length === 0 ? (
           <div className="text-center py-8 text-text-muted text-sm card-border rounded-xl">No replies yet. Be the first to respond!</div>
         ) : tree.map((reply) => (
-          <ReplyNode key={reply.id} reply={reply} currentUser={currentUser} onAddReply={(parentId, content) => onAddReply(parentId, content)} depth={0} />
+          <ReplyNode 
+            key={reply.id} 
+            reply={reply} 
+            currentUser={currentUser} 
+            onAddReply={(parentId, content) => onAddReply(parentId, content)} 
+            depth={0} 
+            threadAuthorId={threadAuthorId}
+            solvedReplyId={solvedReplyId}
+            onMarkSolved={onMarkSolved}
+          />
         ))}
       </div>
     </div>

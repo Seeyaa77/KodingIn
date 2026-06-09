@@ -3,7 +3,7 @@
 import React, { use, useState } from 'react';
 import { useKodingku } from '@/context/KodingkuContext';
 import Link from 'next/link';
-import { ArrowLeft, ArrowUp, ArrowDown, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowUp, ArrowDown, AlertCircle, CheckCircle2 } from 'lucide-react';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import LiveCodePreview from '@/components/LiveCodePreview';
 import GithubPreviewCard from '@/components/GithubPreviewCard';
@@ -14,7 +14,7 @@ interface ThreadPageProps { params: Promise<{ id: string }>; }
 
 export default function ThreadDetail({ params }: ThreadPageProps) {
   const { id } = use(params);
-  const { currentUser, threads, replies, voteThread, createReply } = useKodingku();
+  const { currentUser, threads, replies, voteThread, createReply, markReplyAsSolved } = useKodingku();
   const [revealedNSFC, setRevealedNSFC] = useState(false);
 
   const thread = threads.find(t => t.id === id);
@@ -76,7 +76,14 @@ export default function ThreadDetail({ params }: ThreadPageProps) {
               </div>
             </div>
 
-            <h1 className="text-lg font-bold text-text-primary mb-3">{thread.title}</h1>
+            <div className="flex items-center gap-2 mb-3">
+              <h1 className="text-lg font-bold text-text-primary">{thread.title}</h1>
+              {thread.solvedReplyId && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-accent-success/15 text-accent-success px-2 py-0.5 rounded-md uppercase tracking-wider">
+                  <CheckCircle2 size={10} /> Solved
+                </span>
+              )}
+            </div>
 
             {/* Tags */}
             <div className="flex items-center gap-1.5 mb-4">
@@ -118,7 +125,14 @@ export default function ThreadDetail({ params }: ThreadPageProps) {
         </div>
       </article>
 
-      <ReplyTree replies={threadReplies} currentUser={currentUser} onAddReply={(parentId, content) => createReply(id, parentId, content)} />
+      <ReplyTree 
+        replies={threadReplies} 
+        currentUser={currentUser} 
+        onAddReply={(parentId, content) => createReply(id, parentId, content)} 
+        threadAuthorId={thread.userId}
+        solvedReplyId={thread.solvedReplyId}
+        onMarkSolved={(replyId) => markReplyAsSolved(thread.id, replyId)}
+      />
     </div>
   );
 }

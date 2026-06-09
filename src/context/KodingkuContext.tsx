@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, Thread, Reply } from '../lib/mockData';
-import { supabase, isMock, subscribeToChannel, mapUser, mapThread, mapReply } from '../lib/supabase';
+import { supabase, isMock, subscribeToChannel, mapUser, mapThread, mapReply, supabaseMock } from '../lib/supabase';
 import { ShieldCheck, Award } from 'lucide-react';
 
 interface KodingkuContextType {
@@ -21,6 +21,7 @@ interface KodingkuContextType {
   switchUserProfile: (userId: string) => void;
   registerUserProfile: (username: string, displayName: string, techStack: string[]) => void;
   logout: () => Promise<void>;
+  markReplyAsSolved: (threadId: string, replyId: string | null) => Promise<void>;
 }
 
 const KodingkuContext = createContext<KodingkuContextType | undefined>(undefined);
@@ -308,6 +309,39 @@ export function KodingkuProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const markReplyAsSolved = async (threadId: string, replyId: string | null) => {
+    try {
+      if (isMock) {
+        await supabase.from('threads').update({ solved_reply_id: replyId }).eq('id', threadId);
+        
+        const targetThread = threads.find(t => t.id === threadId);
+        if (targetThread) {
+          if (replyId) {
+            const reply = replies.find(r => r.id === replyId);
+            if (reply && reply.userId !== currentUser?.id) {
+              await supabaseMock.adjustReputation(reply.userId, 15);
+            }
+          } else if (targetThread.solvedReplyId) {
+            const oldReply = replies.find(r => r.id === targetThread.solvedReplyId);
+            if (oldReply && oldReply.userId !== currentUser?.id) {
+              await supabaseMock.adjustReputation(oldReply.userId, -15);
+            }
+          }
+        }
+        refreshData();
+      } else {
+        const { error } = await supabase
+          .from('threads')
+          .update({ solved_reply_id: replyId })
+          .eq('id', threadId);
+        if (error) throw error;
+        refreshData();
+      }
+    } catch (err) {
+      console.error("Error setting thread solution:", err);
+    }
+  };
+
   return (
     <KodingkuContext.Provider value={{
       currentUser,
@@ -324,7 +358,8 @@ export function KodingkuProvider({ children }: { children: React.ReactNode }) {
       createReply,
       switchUserProfile,
       registerUserProfile,
-      logout
+      logout,
+      markReplyAsSolved
     }}>
       {children}
 

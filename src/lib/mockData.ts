@@ -32,6 +32,7 @@ export interface Thread {
   downvotes: number;
   createdAt: string;
   author?: UserProfile;
+  solvedReplyId?: string;
 }
 
 export interface Reply {

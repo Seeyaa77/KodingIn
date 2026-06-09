@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useKodingku } from '@/context/KodingkuContext';
 import Link from 'next/link';
 import { isMock, supabase } from '@/lib/supabase';
-import { Plus, ArrowUp, ArrowDown, MessageSquare, X, Eye, EyeOff, ShieldAlert, Flame, Clock, HelpCircle, ChevronRight, TrendingUp, Users, FileText, Award } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, MessageSquare, X, Eye, EyeOff, ShieldAlert, Flame, Clock, HelpCircle, ChevronRight, TrendingUp, Users, FileText, Award, CheckCircle2, Image as ImageIcon } from 'lucide-react';
 import GithubPreviewCard from '@/components/GithubPreviewCard';
 import LiveCodePreview from '@/components/LiveCodePreview';
 
@@ -24,6 +24,7 @@ export default function Home() {
   const [sandboxJs, setSandboxJs] = useState('');
   const [editorTab, setEditorTab] = useState<'write'|'preview'>('write');
   const [sortMode, setSortMode] = useState<SortMode>('hot');
+  const [uploading, setUploading] = useState(false);
 
   // Registration (mock only)
   const [showRegForm, setShowRegForm] = useState(false);
@@ -42,6 +43,43 @@ export default function Home() {
     const sandbox = includeSandbox ? { html: sandboxHtml, css: sandboxCss, js: sandboxJs } : undefined;
     const success = await createThread(newTitle, newContent, selectedTags, sandbox, newGithub);
     if (success) { setNewTitle(''); setNewContent(''); setNewGithub(''); setIncludeSandbox(false); setShowModal(false); }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      if (isMock) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string;
+          setNewContent(prev => prev + `\n\n![Uploaded Image](${dataUrl})`);
+          setUploading(false);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `uploads/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('images')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('images')
+          .getPublicUrl(filePath);
+
+        setNewContent(prev => prev + `\n\n![Uploaded Image](${publicUrl})`);
+        setUploading(false);
+      }
+    } catch (err: any) {
+      alert("Error uploading image: " + err.message);
+      setUploading(false);
+    }
   };
 
   const handleRegister = (e: React.FormEvent) => {
@@ -162,9 +200,14 @@ export default function Home() {
                       </div>
 
                       <Link href={`/thread/${thread.id}`} className="block group">
-                        <h2 className="text-sm font-semibold text-text-primary group-hover:text-accent-blue transition-colors mb-1.5 line-clamp-1 flex items-center gap-1">
-                          {thread.title}
-                          <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity text-accent-blue" />
+                        <h2 className="text-sm font-semibold text-text-primary group-hover:text-accent-blue transition-colors mb-1.5 line-clamp-1 flex items-center gap-2 flex-wrap">
+                          <span>{thread.title}</span>
+                          {thread.solvedReplyId && (
+                            <span className="inline-flex items-center gap-0.5 text-[8px] font-bold bg-accent-success/15 text-accent-success px-1.5 py-0.5 rounded uppercase tracking-wider">
+                              <CheckCircle2 size={8} /> Solved
+                            </span>
+                          )}
+                          <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity text-accent-blue inline-block" />
                         </h2>
                       </Link>
 
@@ -269,9 +312,18 @@ export default function Home() {
               </div>
 
               <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <button type="button" onClick={() => setEditorTab('write')} className={`text-xs px-2 py-1 rounded-md cursor-pointer ${editorTab === 'write' ? 'bg-accent-blue/10 text-accent-blue font-medium' : 'text-text-muted hover:text-text-primary'}`}>Write</button>
-                  <button type="button" onClick={() => setEditorTab('preview')} className={`text-xs px-2 py-1 rounded-md cursor-pointer ${editorTab === 'preview' ? 'bg-accent-blue/10 text-accent-blue font-medium' : 'text-text-muted hover:text-text-primary'}`}>Preview</button>
+                <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setEditorTab('write')} className={`text-xs px-2 py-1 rounded-md cursor-pointer ${editorTab === 'write' ? 'bg-accent-blue/10 text-accent-blue font-medium' : 'text-text-muted hover:text-text-primary'}`}>Write</button>
+                    <button type="button" onClick={() => setEditorTab('preview')} className={`text-xs px-2 py-1 rounded-md cursor-pointer ${editorTab === 'preview' ? 'bg-accent-blue/10 text-accent-blue font-medium' : 'text-text-muted hover:text-text-primary'}`}>Preview</button>
+                  </div>
+                  {editorTab === 'write' && (
+                    <label className="text-xs text-text-muted hover:text-accent-blue cursor-pointer flex items-center gap-1 bg-bg-app border border-border-default px-2.5 py-1 rounded-lg transition-colors select-none">
+                      <ImageIcon size={12} className={uploading ? 'animate-pulse' : ''} />
+                      <span>{uploading ? 'Uploading...' : 'Upload Image'}</span>
+                      <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+                    </label>
+                  )}
                 </div>
                 {editorTab === 'write' ? (
                   <textarea required placeholder="Write your content (Markdown supported)..." value={newContent} onChange={(e) => setNewContent(e.target.value)} rows={6}

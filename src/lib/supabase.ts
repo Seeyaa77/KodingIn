@@ -69,6 +69,7 @@ export const mapThread = (dbThread: any): Thread => {
     upvotes: dbThread.upvotes !== undefined ? dbThread.upvotes : 0,
     downvotes: dbThread.downvotes !== undefined ? dbThread.downvotes : 0,
     createdAt: dbThread.created_at || dbThread.createdAt,
+    solvedReplyId: dbThread.solved_reply_id || dbThread.solvedReplyId || undefined,
     author: dbThread.author 
       ? mapUser(dbThread.author) 
       : dbThread.users 
@@ -352,6 +353,10 @@ export class MockSupabaseClient {
           mappedRecord.githubUrl = record.github_url;
           delete mappedRecord.github_url;
         }
+        if (record.solved_reply_id !== undefined) {
+          mappedRecord.solvedReplyId = record.solved_reply_id;
+          delete mappedRecord.solved_reply_id;
+        }
 
         const newRecord = {
           id: mappedRecord.id || `${table.slice(0, -1)}-${Date.now()}`,
@@ -395,9 +400,19 @@ export class MockSupabaseClient {
             let searchCol = col;
             if (col === 'user_id') searchCol = 'userId';
 
+            const mappedUpdates = { ...updates };
+            if (updates.solved_reply_id !== undefined) {
+              mappedUpdates.solvedReplyId = updates.solved_reply_id;
+              delete mappedUpdates.solved_reply_id;
+            }
+            if (updates.social_links !== undefined) {
+              mappedUpdates.socialLinks = updates.social_links;
+              delete mappedUpdates.social_links;
+            }
+
             const newItems = items.map((item: any) => {
               if (item[searchCol] === val) {
-                const updated = { ...item, ...updates };
+                const updated = { ...item, ...mappedUpdates };
                 updatedRecords.push(updated);
                 return updated;
               }
