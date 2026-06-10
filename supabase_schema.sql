@@ -4,8 +4,24 @@
 -- Enable UUID extension if not enabled
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Drop existing triggers, tables, and types for a clean setup
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP TRIGGER IF EXISTS on_thread_solution_changed ON public.threads;
+DROP TABLE IF EXISTS public.votes CASCADE;
+DROP TABLE IF EXISTS public.replies CASCADE;
+DROP TABLE IF EXISTS public.threads CASCADE;
+DROP TABLE IF EXISTS public.users CASCADE;
+DROP TYPE IF EXISTS public.user_role CASCADE;
+
+
 -- Create User Role Enum
-CREATE TYPE public.user_role AS ENUM ('user', 'admin');
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role' AND typnamespace = 'public'::regnamespace) THEN
+    CREATE TYPE public.user_role AS ENUM ('user', 'admin');
+  END IF;
+END$$;
+
 
 -- 1. Users Table (Linked to Supabase auth.users)
 CREATE TABLE public.users (
@@ -68,6 +84,7 @@ DECLARE
   v_username VARCHAR(50);
   v_display_name VARCHAR(100);
   v_avatar_url TEXT;
+  v_role public.user_role;
 BEGIN
   -- Extract username from metadata or email prefix
   v_username := COALESCE(
@@ -91,6 +108,13 @@ BEGIN
   -- Provisions default avatar URL using Dicebear SVG keyed on username
   v_avatar_url := 'https://api.dicebear.com/7.x/bottts/svg?seed=' || v_username;
 
+  -- Determine role
+  IF v_username = 'kodingku_admin' OR NEW.email LIKE '%admin%' OR NEW.raw_user_meta_data->>'role' = 'admin' THEN
+    v_role := 'admin'::public.user_role;
+  ELSE
+    v_role := 'user'::public.user_role;
+  END IF;
+
   INSERT INTO public.users (id, username, display_name, avatar_url, reputation, tech_stack, level, role)
   VALUES (
     NEW.id,
@@ -100,7 +124,7 @@ BEGIN
     10,
     COALESCE(ARRAY(SELECT jsonb_array_elements_text(NEW.raw_user_meta_data->'tech_stack')), '{}'::text[]),
     'Syntax Novice',
-    'user'::public.user_role
+    v_role
   );
   RETURN NEW;
 END;
@@ -258,3 +282,110 @@ CREATE POLICY "Users can update their own vote" ON public.votes
 
 CREATE POLICY "Users can delete their own vote" ON public.votes 
   FOR DELETE USING (auth.uid() = user_id);
+
+-- ----------------------------------------------------
+-- SYNC EXISTING USERS
+-- ----------------------------------------------------
+-- Sync existing users from auth.users to public.users (avoids missing profiles after reset)
+CREATE OR REPLACE FUNCTION public.sync_existing_users()
+RETURNS void AS $$
+DECLARE
+  usr RECORD;
+  v_username VARCHAR(50);
+  v_display_name VARCHAR(100);
+  v_avatar_url TEXT;
+  v_role public.user_role;
+BEGIN
+  FOR usr IN SELECT * FROM auth.users LOOP
+    v_username := COALESCE(
+      usr.raw_user_meta_data->>'username',
+      usr.raw_user_meta_data->>'user_name',
+      split_part(usr.email, '@', 1)
+    );
+    v_username := LOWER(REGEXP_REPLACE(v_username, '\s+', '_', 'g'));
+    
+    -- Ensure uniqueness of username during sync
+    IF EXISTS (SELECT 1 FROM public.users WHERE username = v_username AND id <> usr.id) THEN
+      v_username := v_username || '_' || FLOOR(RANDOM() * 1000)::text;
+    END IF;
+
+    v_display_name := COALESCE(
+      usr.raw_user_meta_data->>'display_name',
+      usr.raw_user_meta_data->>'full_name',
+      split_part(usr.email, '@', 1)
+    );
+
+    v_avatar_url := 'https://api.dicebear.com/7.x/bottts/svg?seed=' || v_username;
+
+    -- Determine role
+    IF v_username = 'kodingku_admin' OR usr.email LIKE '%admin%' OR usr.raw_user_meta_data->>'role' = 'admin' THEN
+      v_role := 'admin'::public.user_role;
+    ELSE
+      v_role := 'user'::public.user_role;
+    END IF;
+
+    INSERT INTO public.users (id, username, display_name, avatar_url, reputation, tech_stack, level, role)
+    VALUES (
+      usr.id,
+      v_username,
+      v_display_name,
+      v_avatar_url,
+      10,
+      COALESCE(ARRAY(SELECT jsonb_array_elements_text(usr.raw_user_meta_data->'tech_stack')), '{}'::text[]),
+      'Syntax Novice',
+      v_role
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET 
+      username = EXCLUDED.username,
+      display_name = EXCLUDED.display_name,
+      avatar_url = EXCLUDED.avatar_url,
+      role = EXCLUDED.role;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Run the sync
+SELECT public.sync_existing_users();
+
+-- Clean up helper function
+DROP FUNCTION public.sync_existing_users();
+
+
+-- D. Trigger function to adjust reputation when thread solution is set/unset
+CREATE OR REPLACE FUNCTION public.handle_thread_solution_change()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_old_reply_author_id UUID;
+  v_new_reply_author_id UUID;
+BEGIN
+  -- 1. If old solved_reply_id is removed or changed, deduct 15 reputation points from the old replier
+  IF OLD.solved_reply_id IS NOT NULL AND (NEW.solved_reply_id IS NULL OR NEW.solved_reply_id <> OLD.solved_reply_id) THEN
+    SELECT user_id INTO v_old_reply_author_id FROM public.replies WHERE id = OLD.solved_reply_id;
+    -- Only deduct if the replier is not the thread owner (self-answers don't get reputation)
+    IF v_old_reply_author_id IS NOT NULL AND v_old_reply_author_id <> OLD.user_id THEN
+      UPDATE public.users 
+      SET reputation = GREATEST(0, reputation - 15)
+      WHERE id = v_old_reply_author_id;
+    END IF;
+  END IF;
+
+  -- 2. If new solved_reply_id is set, award 15 reputation points to the new replier
+  IF NEW.solved_reply_id IS NOT NULL AND (OLD.solved_reply_id IS NULL OR NEW.solved_reply_id <> OLD.solved_reply_id) THEN
+    SELECT user_id INTO v_new_reply_author_id FROM public.replies WHERE id = NEW.solved_reply_id;
+    -- Only award if the replier is not the thread owner (self-answers don't get reputation)
+    IF v_new_reply_author_id IS NOT NULL AND v_new_reply_author_id <> NEW.user_id THEN
+      UPDATE public.users 
+      SET reputation = reputation + 15
+      WHERE id = v_new_reply_author_id;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_thread_solution_changed
+AFTER UPDATE OF solved_reply_id ON public.threads
+FOR EACH ROW EXECUTE FUNCTION public.handle_thread_solution_change();
+

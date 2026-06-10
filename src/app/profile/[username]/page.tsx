@@ -6,6 +6,29 @@ import Link from 'next/link';
 import { ArrowLeft, Trash2, Plus, MessageSquare, ArrowUp, ArrowDown, AlertCircle, Shield, ExternalLink, Pencil, Check, X } from 'lucide-react';
 import { supabase, isMock } from '@/lib/supabase';
 
+function stripMarkdown(md: string): string {
+  if (!md) return "";
+  let str = md;
+  // Replace images
+  str = str.replace(/!\[.*?\]\(.*?\)/g, "");
+  // Replace links
+  str = str.replace(/\[(.*?)\]\(.*?\)/g, "$1");
+  // Replace code blocks and inline code
+  str = str.replace(/```[\s\S]*?```/g, "");
+  str = str.replace(/`([^`]+)`/g, "$1");
+  // Replace headers (#...)
+  str = str.replace(/^#+\s+/gm, "");
+  // Replace emphasis (bold, italic)
+  str = str.replace(/(\*\*|__)(.*?)\1/g, "$2");
+  str = str.replace(/(\*|_)(.*?)\1/g, "$2");
+  // Replace blockquotes
+  str = str.replace(/^\s*>\s+/gm, "");
+  // Replace list markers
+  str = str.replace(/^\s*[-*+]\s+/gm, "");
+  str = str.replace(/^\s*\d+\.\s+/gm, "");
+  return str.trim();
+}
+
 interface ProfilePageProps { params: Promise<{ username: string }>; }
 
 export default function ProfileDetail({ params }: ProfilePageProps) {
@@ -248,6 +271,7 @@ export default function ProfileDetail({ params }: ProfilePageProps) {
             <div className="p-12 card-border rounded-xl text-center text-text-muted text-sm">No posts yet.</div>
           ) : userThreads.map((thread) => {
             const replyCount = replies.filter(r => r.threadId === thread.id).length;
+            const cleanPreview = stripMarkdown(thread.content);
             return (
               <article key={thread.id} className="p-4 bg-bg-card card-border rounded-xl card-hover flex gap-4">
                 <div className="flex flex-col items-center gap-0.5">
@@ -264,7 +288,9 @@ export default function ProfileDetail({ params }: ProfilePageProps) {
                 <div className="flex-grow min-w-0">
                   <div className="text-[11px] text-text-muted mb-1">{new Date(thread.createdAt).toLocaleDateString()}</div>
                   <Link href={`/thread/${thread.id}`}><h2 className="text-sm font-semibold text-text-primary hover:text-accent-blue transition-colors line-clamp-1">{thread.title}</h2></Link>
-                  <p className="mt-1.5 text-xs text-text-muted line-clamp-2 leading-relaxed">{thread.content}</p>
+                  <p className="mt-1.5 text-xs text-text-muted line-clamp-2 leading-relaxed">
+                    {cleanPreview.length > 200 ? `${cleanPreview.substring(0, 200)}...` : cleanPreview}
+                  </p>
                   <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-border-default text-[10px]">
                     <div className="flex gap-1">{thread.tags.map(t => (<span key={t} className="bg-accent-blue/10 text-accent-blue px-1.5 py-0.5 rounded-md">#{t}</span>))}</div>
                     <Link href={`/thread/${thread.id}`} className="flex items-center gap-1 text-text-muted hover:text-text-primary transition-colors"><MessageSquare size={10} /> {replyCount}</Link>
