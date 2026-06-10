@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KodingIn 🚀
+**KodingIn** adalah platform komunitas developer-first yang dirancang khusus untuk membagikan meme coding, diskusi Q&A, tutorial, petunjuk pemecahan masalah, dan showcase proyek lengkap dengan live-compiler sandbox.
 
-## Getting Started
+Platform ini hadir dengan tampilan bertema **Dracula / One Dark Pro Terminal** yang estetik, modern, dan fungsional.
 
-First, run the development server:
+---
 
+## ✨ Fitur Utama
+- **Real-Time Split Markdown Editor:** Membuat thread kini lebih interaktif dengan visual editor side-by-side. Ketik kode/text markdown di sisi kiri, dan lihat preview ter-compile secara instan di sisi kanan.
+- **Markdown Formatting Toolbar & Cheat Sheet:** Membantu memformat tulisan (Tebal, Miring, Code Block, Link, Quote, List) dengan cepat tanpa perlu menghafal sintaks markdown.
+- **Interactive Live Code Sandbox:** Bagikan template HTML/CSS/JS Anda langsung di dalam thread. Pengguna lain dapat mengedit dan melihat hasil compile secara langsung (iframe sandbox).
+- **Reputation System ("Bytes") & Levels:** Otomatisasi perhitungan reputasi pengguna berdasarkan kontribusi mereka (Upvotes, Downvotes, postingan tutorial #Tutor, serta penandaan solusi/solved).
+- **GitHub Repository Preview Card:** Tempel tautan repositori GitHub Anda saat membuat thread, dan platform akan otomatis merender kartu preview repositori yang berisi bintang (stars), forks, deskripsi, dan bahasa pemrograman secara dinamis.
+- **Q&A Solved System:** Penulis thread dapat menandai balasan terbaik sebagai solusi. Tindakan ini secara otomatis memberikan reward reputasi (+15 Bytes) kepada penolong pada database layer.
+- **Role-Based Badges & Actions:** Menampilkan badge khusus untuk "Admin" dan mengaktifkan tombol moderasi instan (seperti tombol delete langsung di feed timeline).
+
+---
+
+## 🛠️ Tech Stack yang Digunakan
+
+### 1. Frontend & Client-side
+* **Framework:** Next.js 16 (App Router, React 19)
+* **Pintasan Bahasa:** TypeScript (Type-safe compilation)
+* **Styling:** Custom CSS + CSS Variable Dracula tokens (Sangat fleksibel, responsif, dan responsif terhadap transisi)
+* **Icons:** Lucide React (Sleek developer-centric icons)
+* **Markdown Renderer:** Custom component rendering markdown safely
+
+### 2. Backend & Database
+* **Database:** Supabase PostgreSQL (Relational schema)
+* **Authentication:** Supabase Auth (Mendukung email login langsung & OAuth)
+* **Row Level Security (RLS):** Kebijakan keamanan granular di database PostgreSQL (Hanya pembuat yang dapat mengedit postingan mereka, namun admin memiliki izin penuh)
+* **Database Triggers:**
+  - `handle_thread_solution_change`: Otomatisasi pembaruan reputasi (+15 Bytes) ketika solusi ditandai/dihapus pada tabel threads.
+  - `sync_existing_users`: Menyinkronkan pengguna auth baru ke tabel publik.
+* **Scraper API:** Node.js Express.js API endpoint untuk mengekstrak metadata repositori GitHub secara real-time.
+
+---
+
+## 🚀 Cara Menjalankan Project Secara Lokal
+
+### Prasyarat
+Pastikan Anda sudah menginstal:
+* [Node.js](https://nodejs.org) (Versi 18+ direkomendasikan)
+* [npm](https://www.npmjs.com/) atau yarn/pnpm
+
+### Langkah 1: Kloning & Masuk ke Direktori Project
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd project3
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Langkah 2: Instal Dependensi
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Langkah 3: Konfigurasi Environment Variables
+Salin berkas `.env.example` menjadi `.env.local` dan lengkapi konfigurasi Supabase Anda:
+```env
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+> [!NOTE]
+> Jika `.env.local` tidak diisi atau dijalankan dalam mode offline, aplikasi secara otomatis masuk ke **Mock Database Mode** menggunakan data tiruan (`localStorage`) sehingga Anda tetap dapat menguji seluruh alur autentikasi dan pembuatan postingan secara instan!
 
-## Learn More
+### Langkah 4: Jalankan Server Pengembangan (Development Server)
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Aplikasi sekarang dapat diakses melalui browser Anda di **[http://localhost:3000](http://localhost:3000)**.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Langkah 5: Menjalankan Database Migrations (Supabase)
+Jika Anda menggunakan live Supabase database, jalankan kode SQL yang terdapat di berkas `supabase_schema.sql` langsung melalui **Supabase SQL Editor** Anda untuk mempersiapkan tabel, relasi, RLS policies, dan trigger fungsi otomatis.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 📦 Struktur Skema Database
+* `public.users`: Menyimpan data profil developer, tech stack, level, peran (role), dan poin reputasi (Bytes).
+* `public.threads`: Menyimpan thread diskusi beserta referensi link GitHub, tag kategori, dan tanda solusi (`solved_reply_id`).
+* `public.replies`: Menyimpan pesan balasan/komentar secara terstruktur (mendukung nested reply tree).
+* `public.votes`: Mencatat upvotes/downvotes thread untuk mencegah voting berulang dari pengguna yang sama.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🎨 Panduan Kontribusi
+1. Pastikan setiap komponen visual mengikuti aturan warna Dracula (terutama background gelap, border redup, dan teks accent biru/hijau/merah).
+2. Gunakan static check `npm run build` sebelum melakukan push commit untuk memastikan tidak ada kesalahan TypeScript atau kompilasi bundler Next.js.
