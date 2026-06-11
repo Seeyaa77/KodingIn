@@ -484,8 +484,8 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error;
       }
       refreshData();
-    } catch (err) {
-      console.error("Error following user:", err);
+    } catch (err: any) {
+      console.error("Error following user:", err?.message || err);
     }
   };
 
@@ -503,8 +503,8 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error;
       }
       refreshData();
-    } catch (err) {
-      console.error("Error unfollowing user:", err);
+    } catch (err: any) {
+      console.error("Error unfollowing user:", err?.message || err);
     }
   };
 
@@ -520,8 +520,8 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error;
       }
       refreshData();
-    } catch (err) {
-      console.error("Error accepting message request:", err);
+    } catch (err: any) {
+      console.error("Error accepting message request:", err?.message || err);
     }
   };
 
@@ -537,8 +537,8 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error;
       }
       refreshData();
-    } catch (err) {
-      console.error("Error rejecting message request:", err);
+    } catch (err: any) {
+      console.error("Error rejecting message request:", err?.message || err);
     }
   };
 
@@ -630,8 +630,8 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
       }
 
       refreshData();
-    } catch (err) {
-      console.error("Error sending message:", err);
+    } catch (err: any) {
+      console.error("Error sending message:", err?.message || err);
     }
   };
 

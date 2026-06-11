@@ -408,17 +408,14 @@ ALTER TABLE public.follows ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allows public read access to follows"
   ON public.follows FOR SELECT
-  TO authenticated
   USING (true);
 
 CREATE POLICY "Allows users to follow others"
   ON public.follows FOR INSERT
-  TO authenticated
   WITH CHECK (auth.uid() = follower_id);
 
 CREATE POLICY "Allows users to unfollow others"
   ON public.follows FOR DELETE
-  TO authenticated
   USING (auth.uid() = follower_id);
 
 
@@ -433,7 +430,6 @@ ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow participant select conversation"
   ON public.conversations FOR SELECT
-  TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM public.conversation_participants cp
@@ -443,12 +439,10 @@ CREATE POLICY "Allow participant select conversation"
 
 CREATE POLICY "Allow insert conversation"
   ON public.conversations FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (auth.role() = 'authenticated');
 
 CREATE POLICY "Allow update conversation status"
   ON public.conversations FOR UPDATE
-  TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM public.conversation_participants cp
@@ -469,7 +463,6 @@ ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow users to view participants in their conversations"
   ON public.conversation_participants FOR SELECT
-  TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM public.conversation_participants cp
@@ -479,8 +472,7 @@ CREATE POLICY "Allow users to view participants in their conversations"
 
 CREATE POLICY "Allow participant registration"
   ON public.conversation_participants FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (auth.role() = 'authenticated');
 
 
 -- 4. Messages Table
@@ -497,7 +489,6 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow participants to read messages"
   ON public.messages FOR SELECT
-  TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM public.conversation_participants cp
@@ -507,7 +498,6 @@ CREATE POLICY "Allow participants to read messages"
 
 CREATE POLICY "Allow participants to send messages"
   ON public.messages FOR INSERT
-  TO authenticated
   WITH CHECK (
     auth.uid() = sender_id AND
     EXISTS (
