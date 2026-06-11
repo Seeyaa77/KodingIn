@@ -4,11 +4,21 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useKodingin } from '@/context/KodinginContext';
 import { isMock } from '@/lib/supabase';
-import { Search, LogOut, User, Award, Shield, ChevronDown, Check, LogIn, UserPlus, X } from 'lucide-react';
+import { Search, LogOut, User, Award, Shield, ChevronDown, Check, LogIn, UserPlus, X, Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function Navbar() {
-  const { currentUser, users, switchUserProfile, registerUserProfile, searchQuery, setSearchQuery, logout } = useKodingin();
+  const { 
+    currentUser, 
+    users, 
+    switchUserProfile, 
+    registerUserProfile, 
+    searchQuery, 
+    setSearchQuery, 
+    logout,
+    messages,
+    conversationParticipants
+  } = useKodingin();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showRegForm, setShowRegForm] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -46,6 +56,12 @@ export default function Navbar() {
     router.push('/login');
   };
 
+  const unreadCount = currentUser ? messages.filter(m => 
+    m.senderId !== currentUser.id && 
+    !m.isRead && 
+    conversationParticipants.some(p => p.conversationId === m.conversationId && p.userId === currentUser.id)
+  ).length : 0;
+
   return (
     <>
       <nav className="sticky top-0 z-40 w-full border-b border-border-default bg-bg-app/80 backdrop-blur-md">
@@ -79,7 +95,21 @@ export default function Navbar() {
           </div>
 
           {/* Right: Actions & Profile Dropdown */}
-          <div className="flex items-center gap-3">
+          <div className="flex-none flex items-center gap-3">
+            {currentUser && (
+              <Link
+                href="/inbox"
+                className="p-1.5 rounded-lg hover:bg-hover-bg text-text-secondary hover:text-text-primary transition-colors cursor-pointer relative"
+                title="Inbox / Direct Messages"
+              >
+                <Mail size={16} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent-danger text-[8px] font-bold text-white">
+                    {unreadCount}
+                  </span>
+                )}
+              </Link>
+            )}
             {currentUser ? (
               <div className="relative" ref={dropdownRef}>
                 <button

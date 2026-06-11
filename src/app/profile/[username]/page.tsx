@@ -5,6 +5,7 @@ import { useKodingin } from '@/context/KodinginContext';
 import Link from 'next/link';
 import { ArrowLeft, Trash2, Plus, MessageSquare, ArrowUp, ArrowDown, AlertCircle, Shield, ExternalLink, Pencil, Check, X } from 'lucide-react';
 import { supabase, isMock } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 function stripMarkdown(md: string): string {
   if (!md) return "";
@@ -33,7 +34,19 @@ interface ProfilePageProps { params: Promise<{ username: string }>; }
 
 export default function ProfileDetail({ params }: ProfilePageProps) {
   const { username } = use(params);
-  const { currentUser, users, threads, replies, voteThread } = useKodingin();
+  const router = useRouter();
+  const { 
+    currentUser, 
+    users, 
+    threads, 
+    replies, 
+    voteThread,
+    follows,
+    followUser,
+    unfollowUser,
+    sendMessage,
+    conversationParticipants
+  } = useKodingin();
   const [newBadge, setNewBadge] = useState('');
   const [editingSocials, setEditingSocials] = useState(false);
   const [socialGithub, setSocialGithub] = useState('');
@@ -137,6 +150,17 @@ export default function ProfileDetail({ params }: ProfilePageProps) {
     }
   };
 
+  const handleMessageClick = async () => {
+    if (!currentUser || !profileUser) return;
+    const userConvs = conversationParticipants.filter(p => p.userId === currentUser.id).map(p => p.conversationId);
+    const targetConvs = conversationParticipants.filter(p => p.userId === profileUser.id).map(p => p.conversationId);
+    const sharedConvId = userConvs.find(id => targetConvs.includes(id));
+    if (!sharedConvId) {
+      await sendMessage(profileUser.id, "Initialized secure connection packet.");
+    }
+    router.push(`/inbox?select=${profileUser.id}`);
+  };
+
   const profileUser = users.find(u => u.username.toLowerCase() === decodeURIComponent(username).toLowerCase());
 
   const userThreads = useMemo(() => {
@@ -149,6 +173,28 @@ export default function ProfileDetail({ params }: ProfilePageProps) {
 
   const isOwnProfile = currentUser?.id === profileUser?.id;
   const isAdmin = (profileUser as any)?.role === 'admin';
+
+  const followerCount = useMemo(() => {
+    if (!profileUser) return 0;
+    return follows.filter(f => f.followingId === profileUser.id).length;
+  }, [follows, profileUser]);
+
+  const followingCount = useMemo(() => {
+    if (!profileUser) return 0;
+    return follows.filter(f => f.followerId === profileUser.id).length;
+  }, [follows, profileUser]);
+
+  const isFollowing = useMemo(() => {
+    if (!currentUser || !profileUser) return false;
+    return follows.some(f => f.followerId === currentUser.id && f.followingId === profileUser.id);
+  }, [follows, currentUser, profileUser]);
+
+  const isMutual = useMemo(() => {
+    if (!currentUser || !profileUser) return false;
+    const followsTarget = follows.some(f => f.followerId === currentUser.id && f.followingId === profileUser.id);
+    const followedByTarget = follows.some(f => f.followerId === profileUser.id && f.followingId === currentUser.id);
+    return followsTarget && followedByTarget;
+  }, [follows, currentUser, profileUser]);
 
   // Build real activity grid from threads + replies (last 91 days)
   const contribData = useMemo(() => {
@@ -271,13 +317,52 @@ export default function ProfileDetail({ params }: ProfilePageProps) {
               <div><span className="block text-[10px] text-text-muted uppercase">Threads</span><span className="text-sm font-bold text-text-primary">{userThreads.length}</span></div>
               <div><span className="block text-[10px] text-text-muted uppercase">Replies</span><span className="text-sm font-bold text-text-primary">{userReplies.length}</span></div>
             </div>
-            {isOwnProfile && (
+
+            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border-default/50 pt-3 text-[11px] font-mono text-center">
+              <div className="border-r border-border-default/50">
+                <span className="text-text-muted block">FOLLOWERS</span>
+                <span className="text-text-primary font-bold text-xs">{followerCount}</span>
+              </div>
+              <div>
+                <span className="text-text-muted block">FOLLOWING</span>
+                <span className="text-text-primary font-bold text-xs">{followingCount}</span>
+              </div>
+            </div>
+
+            {isOwnProfile ? (
               <button 
                 onClick={openEditModal} 
-                className="mt-4 w-full flex items-center justify-center gap-1.5 bg-bg-elevated hover:bg-hover-bg border border-border-default hover:border-border-hover text-text-secondary hover:text-text-primary text-xs py-1.5 rounded-lg cursor-pointer transition-colors font-mono"
+                className="mt-4.5 w-full flex items-center justify-center gap-1.5 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-text-secondary hover:text-text-primary text-xs py-1.5 rounded-lg cursor-pointer transition-colors font-mono"
               >
                 <Pencil size={12} /> Edit Profile
               </button>
+            ) : (
+              currentUser && (
+                <div className="mt-4.5 grid grid-cols-2 gap-2 font-mono">
+                  {isFollowing ? (
+                    <button
+                      onClick={() => unfollowUser(profileUser.id)}
+                      className="px-2.5 py-1.5 border border-accent-danger/40 text-accent-danger bg-accent-danger/5 hover:bg-accent-danger/10 text-xs rounded-lg transition-all cursor-pointer"
+                    >
+                      [ UNFOLLOW ]
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => followUser(profileUser.id)}
+                      className="px-2.5 py-1.5 border border-accent-cyan bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 text-xs rounded-lg transition-all cursor-pointer"
+                    >
+                      [ FOLLOW ]
+                    </button>
+                  )}
+                  <button
+                    onClick={handleMessageClick}
+                    className="px-2.5 py-1.5 border border-border-default text-text-secondary hover:text-text-primary bg-bg-elevated hover:bg-hover-bg text-xs rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <MessageSquare size={11} />
+                    <span>[ MESSAGE ]</span>
+                  </button>
+                </div>
+              )
             )}
           </div>
 

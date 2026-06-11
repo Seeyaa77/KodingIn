@@ -52,6 +52,34 @@ export interface Vote {
   voteType: 'up' | 'down';
 }
 
+export interface Follow {
+  id: string;
+  followerId: string;
+  followingId: string;
+  createdAt: string;
+}
+
+export interface Conversation {
+  id: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string;
+}
+
+export interface ConversationParticipant {
+  id: string;
+  conversationId: string;
+  userId: string;
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  content: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
 export const initialUsers: UserProfile[] = [
   {
     id: "user-1",
@@ -247,5 +275,89 @@ export const initialReplies: Reply[] = [
     userId: "user-4",
     content: "Haha, I am trying! But if I touch it, the server crashes. It is held together by hope.",
     createdAt: "2026-06-08T16:00:00Z"
+  }
+];
+
+export const initialFollows: Follow[] = [
+  {
+    id: "follow-1",
+    followerId: "user-1",
+    followingId: "user-2",
+    createdAt: "2026-06-08T08:00:00Z"
+  },
+  {
+    id: "follow-2",
+    followerId: "user-2",
+    followingId: "user-1",
+    createdAt: "2026-06-08T08:05:00Z"
+  },
+  {
+    id: "follow-3",
+    followerId: "user-4",
+    followingId: "user-2",
+    createdAt: "2026-06-08T08:10:00Z"
+  }
+];
+
+export const initialConversations: Conversation[] = [
+  {
+    id: "conv-1",
+    status: "accepted",
+    createdAt: "2026-06-08T17:00:00Z"
+  },
+  {
+    id: "conv-2",
+    status: "pending",
+    createdAt: "2026-06-08T18:00:00Z"
+  }
+];
+
+export const initialConversationParticipants: ConversationParticipant[] = [
+  {
+    id: "cp-1",
+    conversationId: "conv-1",
+    userId: "user-1"
+  },
+  {
+    id: "cp-2",
+    conversationId: "conv-1",
+    userId: "user-2"
+  },
+  {
+    id: "cp-3",
+    conversationId: "conv-2",
+    userId: "user-4"
+  },
+  {
+    id: "cp-4",
+    conversationId: "conv-2",
+    userId: "user-2"
+  }
+];
+
+export const initialMessages: Message[] = [
+  {
+    id: "msg-1",
+    conversationId: "conv-1",
+    senderId: "user-1",
+    content: "Hey Dan, React 19 looks really interesting with Server Actions.",
+    isRead: true,
+    createdAt: "2026-06-08T17:00:00Z"
+  },
+  {
+    id: "msg-2",
+    conversationId: "conv-1",
+    senderId: "user-2",
+    content: "Thanks Linus! It's all about Server Components and cleaner data fetching. Let me know if you want to try integrating it into a custom kernel status portal.",
+    isRead: false,
+    createdAt: "2026-06-08T17:05:00Z"
+  },
+  {
+    id: "msg-3",
+    conversationId: "conv-2",
+    senderId: "user-4",
+    content: "Hi Dan, can you review my pull request? I am struggling with a re-render bug and would appreciate some wizard insights.",
+    isRead: false,
+    createdAt: "2026-06-08T18:00:00Z"
   }
 ];

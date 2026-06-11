@@ -389,3 +389,131 @@ CREATE TRIGGER on_thread_solution_changed
 AFTER UPDATE OF solved_reply_id ON public.threads
 FOR EACH ROW EXECUTE FUNCTION public.handle_thread_solution_change();
 
+
+-- ----------------------------------------------------
+-- FOLLOWS AND DIRECT MESSAGES SYSTEM (NEW)
+-- ----------------------------------------------------
+
+-- 1. Follows Table
+CREATE TABLE public.follows (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  follower_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  following_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  CONSTRAINT unique_follower_following UNIQUE (follower_id, following_id),
+  CONSTRAINT check_not_self CHECK (follower_id <> following_id)
+);
+
+ALTER TABLE public.follows ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allows public read access to follows"
+  ON public.follows FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Allows users to follow others"
+  ON public.follows FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = follower_id);
+
+CREATE POLICY "Allows users to unfollow others"
+  ON public.follows FOR DELETE
+  TO authenticated
+  USING (auth.uid() = follower_id);
+
+
+-- 2. Conversations Table
+CREATE TABLE public.conversations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow participant select conversation"
+  ON public.conversations FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.conversation_participants cp
+      WHERE cp.conversation_id = id AND cp.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Allow insert conversation"
+  ON public.conversations FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "Allow update conversation status"
+  ON public.conversations FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.conversation_participants cp
+      WHERE cp.conversation_id = id AND cp.user_id = auth.uid()
+    )
+  );
+
+
+-- 3. Conversation Participants Table
+CREATE TABLE public.conversation_participants (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  conversation_id UUID REFERENCES public.conversations(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  CONSTRAINT unique_conversation_user UNIQUE (conversation_id, user_id)
+);
+
+ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow users to view participants in their conversations"
+  ON public.conversation_participants FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.conversation_participants cp
+      WHERE cp.conversation_id = conversation_id AND cp.user_id = auth.uid()
+    ) OR user_id = auth.uid()
+  );
+
+CREATE POLICY "Allow participant registration"
+  ON public.conversation_participants FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+
+-- 4. Messages Table
+CREATE TABLE public.messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  conversation_id UUID REFERENCES public.conversations(id) ON DELETE CASCADE NOT NULL,
+  sender_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  content TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT false NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow participants to read messages"
+  ON public.messages FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.conversation_participants cp
+      WHERE cp.conversation_id = conversation_id AND cp.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Allow participants to send messages"
+  ON public.messages FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    auth.uid() = sender_id AND
+    EXISTS (
+      SELECT 1 FROM public.conversation_participants cp
+      WHERE cp.conversation_id = conversation_id AND cp.user_id = auth.uid()
+    )
+  );
+
+

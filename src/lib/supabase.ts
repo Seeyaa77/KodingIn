@@ -1,5 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
-import { initialUsers, initialThreads, initialReplies, UserProfile, Thread, Reply, Vote } from './mockData';
+import { 
+  initialUsers, 
+  initialThreads, 
+  initialReplies, 
+  initialFollows, 
+  initialConversations, 
+  initialConversationParticipants, 
+  initialMessages, 
+  UserProfile, 
+  Thread, 
+  Reply, 
+  Vote, 
+  Follow, 
+  Conversation, 
+  ConversationParticipant, 
+  Message 
+} from './mockData';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -22,6 +38,18 @@ if (isClient) {
   }
   if (!localStorage.getItem('kodingin_votes')) {
     localStorage.setItem('kodingin_votes', JSON.stringify([]));
+  }
+  if (!localStorage.getItem('kodingin_follows')) {
+    localStorage.setItem('kodingin_follows', JSON.stringify(initialFollows));
+  }
+  if (!localStorage.getItem('kodingin_conversations')) {
+    localStorage.setItem('kodingin_conversations', JSON.stringify(initialConversations));
+  }
+  if (!localStorage.getItem('kodingin_conversation_participants')) {
+    localStorage.setItem('kodingin_conversation_participants', JSON.stringify(initialConversationParticipants));
+  }
+  if (!localStorage.getItem('kodingin_messages')) {
+    localStorage.setItem('kodingin_messages', JSON.stringify(initialMessages));
   }
   if (!localStorage.getItem('kodingin_current_user_id')) {
     // Default logged in user: dan_react (user-2)
@@ -178,16 +206,32 @@ const makeQueryPromise = (data: any, error: any): Promise<{ data: any; error: an
 } => {
   const promise = Promise.resolve({ data, error }) as any;
 
+  const mapColumnName = (col: string) => {
+    let searchCol = col;
+    if (col === 'user_id') searchCol = 'userId';
+    if (col === 'thread_id') searchCol = 'threadId';
+    if (col === 'parent_id') searchCol = 'parentId';
+    if (col === 'follower_id') searchCol = 'followerId';
+    if (col === 'following_id') searchCol = 'followingId';
+    if (col === 'conversation_id') searchCol = 'conversationId';
+    if (col === 'sender_id') searchCol = 'senderId';
+    if (col === 'is_read') searchCol = 'isRead';
+    if (col === 'created_at') searchCol = 'createdAt';
+    return searchCol;
+  };
+
   promise.eq = function (col: string, val: any) {
-    const filtered = data ? data.filter((item: any) => item[col] === val) : [];
+    const searchCol = mapColumnName(col);
+    const filtered = data ? data.filter((item: any) => item[searchCol] === val) : [];
     return makeQueryPromise(filtered, error);
   };
 
   promise.order = function (col: string, { ascending = false } = {}) {
     if (!data) return makeQueryPromise(data, error);
+    const searchCol = mapColumnName(col);
     const ordered = [...data].sort((a: any, b: any) => {
-      const valA = a[col];
-      const valB = b[col];
+      const valA = a[searchCol];
+      const valB = b[searchCol];
       if (typeof valA === 'string') {
         return ascending ? valA.localeCompare(valB) : valB.localeCompare(valA);
       }
@@ -303,6 +347,10 @@ export class MockSupabaseClient {
       case 'threads': storeKey = 'kodingin_threads'; break;
       case 'replies': storeKey = 'kodingin_replies'; break;
       case 'votes': storeKey = 'kodingin_votes'; break;
+      case 'follows': storeKey = 'kodingin_follows'; break;
+      case 'conversations': storeKey = 'kodingin_conversations'; break;
+      case 'conversation_participants': storeKey = 'kodingin_conversation_participants'; break;
+      case 'messages': storeKey = 'kodingin_messages'; break;
       default: storeKey = table;
     }
 
@@ -357,6 +405,26 @@ export class MockSupabaseClient {
           mappedRecord.solvedReplyId = record.solved_reply_id;
           delete mappedRecord.solved_reply_id;
         }
+        if (record.follower_id) {
+          mappedRecord.followerId = record.follower_id;
+          delete mappedRecord.follower_id;
+        }
+        if (record.following_id) {
+          mappedRecord.followingId = record.following_id;
+          delete mappedRecord.following_id;
+        }
+        if (record.conversation_id) {
+          mappedRecord.conversationId = record.conversation_id;
+          delete mappedRecord.conversation_id;
+        }
+        if (record.sender_id) {
+          mappedRecord.senderId = record.sender_id;
+          delete mappedRecord.sender_id;
+        }
+        if (record.is_read !== undefined) {
+          mappedRecord.isRead = record.is_read;
+          delete mappedRecord.is_read;
+        }
 
         const newRecord = {
           id: mappedRecord.id || `${table.slice(0, -1)}-${Date.now()}`,
@@ -387,6 +455,16 @@ export class MockSupabaseClient {
           broadcastToChannel('replies_changed', { type: 'INSERT', record: newRecord });
         }
 
+        if (table === 'messages') {
+          broadcastToChannel('messages_changed', { type: 'INSERT', record: newRecord });
+        }
+        if (table === 'follows') {
+          broadcastToChannel('follows_changed', { type: 'INSERT', record: newRecord });
+        }
+        if (table === 'conversations') {
+          broadcastToChannel('conversations_changed', { type: 'INSERT', record: newRecord });
+        }
+
         return Promise.resolve({ data: [newRecord], error: null });
       },
 
@@ -399,6 +477,10 @@ export class MockSupabaseClient {
             // Map column names for compatibility
             let searchCol = col;
             if (col === 'user_id') searchCol = 'userId';
+            if (col === 'thread_id') searchCol = 'threadId';
+            if (col === 'conversation_id') searchCol = 'conversationId';
+            if (col === 'follower_id') searchCol = 'followerId';
+            if (col === 'following_id') searchCol = 'followingId';
 
             const mappedUpdates = { ...updates };
             if (updates.solved_reply_id !== undefined) {
@@ -421,6 +503,10 @@ export class MockSupabaseClient {
               mappedUpdates.techStack = updates.tech_stack;
               delete mappedUpdates.tech_stack;
             }
+            if (updates.is_read !== undefined) {
+              mappedUpdates.isRead = updates.is_read;
+              delete mappedUpdates.is_read;
+            }
 
             const newItems = items.map((item: any) => {
               if (item[searchCol] === val) {
@@ -439,6 +525,12 @@ export class MockSupabaseClient {
             if (table === 'users') {
               broadcastToChannel('users_changed', { type: 'UPDATE', records: updatedRecords });
             }
+            if (table === 'conversations') {
+              broadcastToChannel('conversations_changed', { type: 'UPDATE', records: updatedRecords });
+            }
+            if (table === 'messages') {
+              broadcastToChannel('messages_changed', { type: 'UPDATE', records: updatedRecords });
+            }
 
             return Promise.resolve({ data: updatedRecords, error: null });
           }
@@ -452,6 +544,10 @@ export class MockSupabaseClient {
             
             let searchCol = col;
             if (col === 'user_id') searchCol = 'userId';
+            if (col === 'thread_id') searchCol = 'threadId';
+            if (col === 'conversation_id') searchCol = 'conversationId';
+            if (col === 'follower_id') searchCol = 'followerId';
+            if (col === 'following_id') searchCol = 'followingId';
             
             const remaining = items.filter((item: any) => item[searchCol] !== val);
             client.setStorage(storeKey, remaining);
@@ -461,6 +557,9 @@ export class MockSupabaseClient {
             }
             if (table === 'replies') {
               broadcastToChannel('replies_changed', { type: 'DELETE', id: val });
+            }
+            if (table === 'follows') {
+              broadcastToChannel('follows_changed', { type: 'DELETE', id: val });
             }
 
             return Promise.resolve({ data: null, error: null });

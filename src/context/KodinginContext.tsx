@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserProfile, Thread, Reply } from '../lib/mockData';
+import { UserProfile, Thread, Reply, Follow, Conversation, ConversationParticipant, Message } from '../lib/mockData';
 import { supabase, isMock, subscribeToChannel, mapUser, mapThread, mapReply, supabaseMock } from '../lib/supabase';
 import { ShieldCheck, Award } from 'lucide-react';
 
@@ -10,6 +10,10 @@ interface KodinginContextType {
   users: UserProfile[];
   threads: Thread[];
   replies: Reply[];
+  follows: Follow[];
+  conversations: Conversation[];
+  conversationParticipants: ConversationParticipant[];
+  messages: Message[];
   loading: boolean;
   activeTagFilter: string;
   setActiveTagFilter: (tag: string) => void;
@@ -22,6 +26,11 @@ interface KodinginContextType {
   registerUserProfile: (username: string, displayName: string, techStack: string[]) => void;
   logout: () => Promise<void>;
   markReplyAsSolved: (threadId: string, replyId: string | null) => Promise<void>;
+  followUser: (userId: string) => Promise<void>;
+  unfollowUser: (userId: string) => Promise<void>;
+  sendMessage: (receiverId: string, content: string) => Promise<void>;
+  acceptConversation: (conversationId: string) => Promise<void>;
+  rejectConversation: (conversationId: string) => Promise<void>;
 }
 
 const KodinginContext = createContext<KodinginContextType | undefined>(undefined);
@@ -31,6 +40,10 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [replies, setReplies] = useState<Reply[]>([]);
+  const [follows, setFollows] = useState<Follow[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversationParticipants, setConversationParticipants] = useState<ConversationParticipant[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTagFilter, setActiveTagFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,6 +53,8 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
 
   const refreshData = async () => {
     try {
+      let activeUser: (UserProfile & { role?: 'user' | 'admin' }) | null = null;
+
       if (isMock) {
         // Fetch mock users
         const { data: usersData } = await supabase.from('users').select('*');
@@ -56,7 +71,7 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
         // Fetch mock active user
         const { data: userData } = await supabase.auth.getUser();
         if (userData?.user) {
-          setCurrentUser(mapUser({
+          activeUser = mapUser({
             id: userData.user.id,
             username: userData.user.user_metadata.username,
             displayName: userData.user.user_metadata.display_name,
@@ -66,10 +81,47 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
             level: userData.user.user_metadata.level,
             role: userData.user.user_metadata.role,
             createdAt: ""
-          }));
+          });
+          setCurrentUser(activeUser);
         } else {
           setCurrentUser(null);
         }
+
+        // Fetch mock follows
+        const { data: followsData } = await supabase.from('follows').select('*');
+        setFollows((followsData || []).map((f: any) => ({
+          id: f.id,
+          followerId: f.followerId,
+          followingId: f.followingId,
+          createdAt: f.createdAt
+        })));
+
+        // Fetch mock conversations
+        const { data: convsData } = await supabase.from('conversations').select('*');
+        setConversations((convsData || []).map((c: any) => ({
+          id: c.id,
+          status: c.status,
+          createdAt: c.createdAt
+        })));
+
+        // Fetch mock participants
+        const { data: partsData } = await supabase.from('conversation_participants').select('*');
+        setConversationParticipants((partsData || []).map((p: any) => ({
+          id: p.id,
+          conversationId: p.conversationId,
+          userId: p.userId
+        })));
+
+        // Fetch mock messages
+        const { data: msgsData } = await supabase.from('messages').select('*').order('created_at', { ascending: true });
+        setMessages((msgsData || []).map((m: any) => ({
+          id: m.id,
+          conversationId: m.conversationId,
+          senderId: m.senderId,
+          content: m.content,
+          isRead: m.isRead,
+          createdAt: m.createdAt
+        })));
       } else {
         // Fetch real database users
         const { data: usersData } = await supabase.from('users').select('*');
@@ -105,10 +157,11 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
             .maybeSingle();
 
           if (profile) {
-            setCurrentUser(mapUser(profile));
+            activeUser = mapUser(profile);
+            setCurrentUser(activeUser);
           } else {
             // Graceful fallback while database trigger completes user profile insert
-            setCurrentUser(mapUser({
+            activeUser = mapUser({
               id: userData.user.id,
               username: userData.user.user_metadata.username || userData.user.email?.split('@')[0] || 'dev',
               displayName: userData.user.user_metadata.display_name || userData.user.email?.split('@')[0] || 'Developer',
@@ -118,10 +171,71 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
               level: 'Syntax Novice',
               role: 'user',
               createdAt: userData.user.created_at
-            }));
+            });
+            setCurrentUser(activeUser);
           }
         } else {
           setCurrentUser(null);
+        }
+
+        // Fetch real follows
+        const { data: followsData } = await supabase.from('follows').select('*');
+        setFollows((followsData || []).map((f: any) => ({
+          id: f.id,
+          followerId: f.follower_id,
+          followingId: f.following_id,
+          createdAt: f.created_at
+        })));
+
+        if (activeUser) {
+          // Real conversations the user participates in
+          const { data: myParticipants } = await supabase
+            .from('conversation_participants')
+            .select('conversation_id')
+            .eq('user_id', activeUser.id);
+
+          const convIds = myParticipants?.map((p: any) => p.conversation_id) || [];
+
+          if (convIds.length > 0) {
+            const { data: convs } = await supabase.from('conversations').select('*').in('id', convIds);
+            setConversations((convs || []).map((c: any) => ({
+              id: c.id,
+              status: c.status,
+              createdAt: c.created_at
+            })));
+
+            const { data: allParticipants } = await supabase
+              .from('conversation_participants')
+              .select('*')
+              .in('conversation_id', convIds);
+            setConversationParticipants((allParticipants || []).map((ap: any) => ({
+              id: ap.id,
+              conversationId: ap.conversation_id,
+              userId: ap.user_id
+            })));
+
+            const { data: msgs } = await supabase
+              .from('messages')
+              .select('*')
+              .in('conversation_id', convIds)
+              .order('created_at', { ascending: true });
+            setMessages((msgs || []).map((m: any) => ({
+              id: m.id,
+              conversationId: m.conversation_id,
+              senderId: m.sender_id,
+              content: m.content,
+              isRead: m.is_read,
+              createdAt: m.created_at
+            })));
+          } else {
+            setConversations([]);
+            setConversationParticipants([]);
+            setMessages([]);
+          }
+        } else {
+          setConversations([]);
+          setConversationParticipants([]);
+          setMessages([]);
         }
       }
     } catch (error) {
@@ -150,6 +264,18 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
       refreshData();
     });
 
+    const unsubscribeFollows = subscribeToChannel('follows_changed', () => {
+      refreshData();
+    });
+
+    const unsubscribeConversations = subscribeToChannel('conversations_changed', () => {
+      refreshData();
+    });
+
+    const unsubscribeMessages = subscribeToChannel('messages_changed', () => {
+      refreshData();
+    });
+
     const unsubscribeLevelUp = subscribeToChannel('level_up', (payload: any) => {
       setLevelUpAlert({
         username: payload.username,
@@ -166,6 +292,9 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
       unsubscribeReplies();
       unsubscribeUsers();
       unsubscribeAuth();
+      unsubscribeFollows();
+      unsubscribeConversations();
+      unsubscribeMessages();
       unsubscribeLevelUp();
     };
   }, []);
@@ -342,12 +471,180 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const followUser = async (targetId: string) => {
+    if (!currentUser) return;
+    try {
+      if (isMock) {
+        await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: targetId });
+      } else {
+        const { error } = await supabase.from('follows').insert({
+          follower_id: currentUser.id,
+          following_id: targetId
+        });
+        if (error) throw error;
+      }
+      refreshData();
+    } catch (err) {
+      console.error("Error following user:", err);
+    }
+  };
+
+  const unfollowUser = async (targetId: string) => {
+    if (!currentUser) return;
+    try {
+      if (isMock) {
+        await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', targetId);
+      } else {
+        const { error } = await supabase
+          .from('follows')
+          .delete()
+          .eq('follower_id', currentUser.id)
+          .eq('following_id', targetId);
+        if (error) throw error;
+      }
+      refreshData();
+    } catch (err) {
+      console.error("Error unfollowing user:", err);
+    }
+  };
+
+  const acceptConversation = async (conversationId: string) => {
+    try {
+      if (isMock) {
+        await supabase.from('conversations').update({ status: 'accepted' }).eq('id', conversationId);
+      } else {
+        const { error } = await supabase
+          .from('conversations')
+          .update({ status: 'accepted' })
+          .eq('id', conversationId);
+        if (error) throw error;
+      }
+      refreshData();
+    } catch (err) {
+      console.error("Error accepting message request:", err);
+    }
+  };
+
+  const rejectConversation = async (conversationId: string) => {
+    try {
+      if (isMock) {
+        await supabase.from('conversations').update({ status: 'rejected' }).eq('id', conversationId);
+      } else {
+        const { error } = await supabase
+          .from('conversations')
+          .update({ status: 'rejected' })
+          .eq('id', conversationId);
+        if (error) throw error;
+      }
+      refreshData();
+    } catch (err) {
+      console.error("Error rejecting message request:", err);
+    }
+  };
+
+  const sendMessage = async (receiverId: string, content: string) => {
+    if (!currentUser || !content.trim()) return;
+
+    const sanitizedContent = content.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "[Purged script]");
+
+    try {
+      // Find if there is an existing conversation
+      const userConvs = conversationParticipants.filter(p => p.userId === currentUser.id).map(p => p.conversationId);
+      const receiverConvs = conversationParticipants.filter(p => p.userId === receiverId).map(p => p.conversationId);
+      const sharedConvId = userConvs.find(id => receiverConvs.includes(id));
+
+      let activeConvId = sharedConvId;
+
+      if (!activeConvId) {
+        // Create new conversation
+        const userFollowsReceiver = follows.some(f => f.followerId === currentUser.id && f.followingId === receiverId);
+        const receiverFollowsUser = follows.some(f => f.followerId === receiverId && f.followingId === currentUser.id);
+        const status = (userFollowsReceiver && receiverFollowsUser) ? 'accepted' : 'pending';
+
+        if (isMock) {
+          const newConv = {
+            status,
+            createdAt: new Date().toISOString()
+          };
+          const { data: convData } = await supabase.from('conversations').insert(newConv);
+          const createdConv = convData?.[0];
+          if (!createdConv) throw new Error("Failed to create conversation in mock db");
+          
+          activeConvId = createdConv.id;
+
+          // Insert participants
+          await supabase.from('conversation_participants').insert({
+            conversation_id: activeConvId,
+            user_id: currentUser.id
+          });
+          await supabase.from('conversation_participants').insert({
+            conversation_id: activeConvId,
+            user_id: receiverId
+          });
+        } else {
+          const { data: convData, error: convError } = await supabase
+            .from('conversations')
+            .insert({ status })
+            .select()
+            .single();
+          if (convError || !convData) throw convError || new Error("Failed to create conversation");
+
+          activeConvId = convData.id;
+
+          // Insert participants
+          const { error: partError } = await supabase
+            .from('conversation_participants')
+            .insert([
+              { conversation_id: activeConvId, user_id: currentUser.id },
+              { conversation_id: activeConvId, user_id: receiverId }
+            ]);
+          if (partError) throw partError;
+        }
+      } else {
+        const targetConv = conversations.find(c => c.id === activeConvId);
+        if (targetConv && targetConv.status === 'rejected') {
+          if (isMock) {
+            await supabase.from('conversations').update({ status: 'pending' }).eq('id', activeConvId);
+          } else {
+            await supabase.from('conversations').update({ status: 'pending' }).eq('id', activeConvId);
+          }
+        }
+      }
+
+      // Insert message
+      if (isMock) {
+        await supabase.from('messages').insert({
+          conversation_id: activeConvId,
+          sender_id: currentUser.id,
+          content: sanitizedContent,
+          is_read: false
+        });
+      } else {
+        const { error: msgError } = await supabase.from('messages').insert({
+          conversation_id: activeConvId,
+          sender_id: currentUser.id,
+          content: sanitizedContent,
+          is_read: false
+        });
+        if (msgError) throw msgError;
+      }
+
+      refreshData();
+    } catch (err) {
+      console.error("Error sending message:", err);
+    }
+  };
+
   return (
     <KodinginContext.Provider value={{
       currentUser,
       users,
       threads,
       replies,
+      follows,
+      conversations,
+      conversationParticipants,
+      messages,
       loading,
       activeTagFilter,
       setActiveTagFilter,
@@ -359,7 +656,12 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
       switchUserProfile,
       registerUserProfile,
       logout,
-      markReplyAsSolved
+      markReplyAsSolved,
+      followUser,
+      unfollowUser,
+      sendMessage,
+      acceptConversation,
+      rejectConversation
     }}>
       {children}
 
