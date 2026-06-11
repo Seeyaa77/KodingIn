@@ -409,6 +409,18 @@ export class MockSupabaseClient {
               mappedUpdates.socialLinks = updates.social_links;
               delete mappedUpdates.social_links;
             }
+            if (updates.avatar_url !== undefined) {
+              mappedUpdates.avatarUrl = updates.avatar_url;
+              delete mappedUpdates.avatar_url;
+            }
+            if (updates.display_name !== undefined) {
+              mappedUpdates.displayName = updates.display_name;
+              delete mappedUpdates.display_name;
+            }
+            if (updates.tech_stack !== undefined) {
+              mappedUpdates.techStack = updates.tech_stack;
+              delete mappedUpdates.tech_stack;
+            }
 
             const newItems = items.map((item: any) => {
               if (item[searchCol] === val) {

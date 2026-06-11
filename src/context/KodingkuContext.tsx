@@ -318,12 +318,12 @@ export function KodingkuProvider({ children }: { children: React.ReactNode }) {
         if (targetThread) {
           if (replyId) {
             const reply = replies.find(r => r.id === replyId);
-            if (reply && reply.userId !== currentUser?.id) {
+            if (reply && reply.userId !== targetThread.userId) {
               await supabaseMock.adjustReputation(reply.userId, 15);
             }
           } else if (targetThread.solvedReplyId) {
             const oldReply = replies.find(r => r.id === targetThread.solvedReplyId);
-            if (oldReply && oldReply.userId !== currentUser?.id) {
+            if (oldReply && oldReply.userId !== targetThread.userId) {
               await supabaseMock.adjustReputation(oldReply.userId, -15);
             }
           }

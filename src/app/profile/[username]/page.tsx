@@ -41,6 +41,102 @@ export default function ProfileDetail({ params }: ProfilePageProps) {
   const [socialTiktok, setSocialTiktok] = useState('');
   const [socialLinkedin, setSocialLinkedin] = useState('');
 
+  // Edit Profile modal states
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editAvatarUrl, setEditAvatarUrl] = useState('');
+  const [avatarOption, setAvatarOption] = useState('generator'); // 'generator' | 'upload' | 'url'
+  const [dicebearStyle, setDicebearStyle] = useState('bottts');
+  const [dicebearSeed, setDicebearSeed] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const openEditModal = () => {
+    if (!profileUser) return;
+    setEditDisplayName(profileUser.displayName);
+    setEditAvatarUrl(profileUser.avatarUrl);
+    
+    // Parse avatar URL to guess which option to select
+    const url = profileUser.avatarUrl || '';
+    if (url.includes('api.dicebear.com')) {
+      setAvatarOption('generator');
+      const match = url.match(/api\.dicebear\.com\/7\.x\/([^/]+)\/svg\?seed=([^&]+)/);
+      if (match) {
+        setDicebearStyle(match[1]);
+        setDicebearSeed(decodeURIComponent(match[2]));
+      } else {
+        setDicebearStyle('bottts');
+        setDicebearSeed(profileUser.username);
+      }
+    } else if (url.startsWith('data:image/')) {
+      setAvatarOption('upload');
+    } else {
+      setAvatarOption('url');
+    }
+    setUploadError('');
+    setShowEditProfileModal(true);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setUploadError('Image size should be less than 2MB');
+      return;
+    }
+    setUploadError('');
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setEditAvatarUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profileUser || !editDisplayName.trim()) return;
+    setIsSaving(true);
+
+    let finalAvatarUrl = editAvatarUrl;
+    if (avatarOption === 'generator') {
+      finalAvatarUrl = `https://api.dicebear.com/7.x/${dicebearStyle}/svg?seed=${encodeURIComponent(dicebearSeed)}`;
+    }
+
+    try {
+      const updates = isMock ? {
+        avatarUrl: finalAvatarUrl,
+        displayName: editDisplayName.trim()
+      } : {
+        avatar_url: finalAvatarUrl,
+        display_name: editDisplayName.trim()
+      };
+
+      const { error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', profileUser.id);
+
+      if (error) throw error;
+
+      if (!isMock) {
+        await supabase.auth.updateUser({
+          data: {
+            avatar_url: finalAvatarUrl,
+            display_name: editDisplayName.trim()
+          }
+        });
+      }
+
+      setShowEditProfileModal(false);
+    } catch (err) {
+      console.error("Error saving profile details:", err);
+      alert("Failed to save profile. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const profileUser = users.find(u => u.username.toLowerCase() === decodeURIComponent(username).toLowerCase());
 
   const userThreads = useMemo(() => {
@@ -175,6 +271,14 @@ export default function ProfileDetail({ params }: ProfilePageProps) {
               <div><span className="block text-[10px] text-text-muted uppercase">Threads</span><span className="text-sm font-bold text-text-primary">{userThreads.length}</span></div>
               <div><span className="block text-[10px] text-text-muted uppercase">Replies</span><span className="text-sm font-bold text-text-primary">{userReplies.length}</span></div>
             </div>
+            {isOwnProfile && (
+              <button 
+                onClick={openEditModal} 
+                className="mt-4 w-full flex items-center justify-center gap-1.5 bg-bg-elevated hover:bg-hover-bg border border-border-default hover:border-border-hover text-text-secondary hover:text-text-primary text-xs py-1.5 rounded-lg cursor-pointer transition-colors font-mono"
+              >
+                <Pencil size={12} /> Edit Profile
+              </button>
+            )}
           </div>
 
           {/* Social Links */}
@@ -301,6 +405,198 @@ export default function ProfileDetail({ params }: ProfilePageProps) {
           })}
         </div>
       </div>
+
+      {/* Edit Profile Modal */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-bg-card card-border rounded-xl p-6 shadow-2xl relative animate-fade-in">
+            <button 
+              onClick={() => setShowEditProfileModal(false)} 
+              className="absolute top-4 right-4 text-text-muted hover:text-text-primary cursor-pointer transition-colors"
+            >
+              <X size={16} />
+            </button>
+
+            <h2 className="text-sm font-semibold text-text-primary mb-5 flex items-center gap-1.5 border-b border-border-default pb-3">
+              <Pencil size={14} className="text-accent-blue" /> Edit Profile Settings
+            </h2>
+
+            <div className="space-y-5 text-xs">
+              {/* Display Name Input */}
+              <div>
+                <label className="block text-text-muted mb-1.5 font-medium">Display Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Your display name"
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  className="w-full bg-bg-app border border-border-default p-2.5 rounded-lg text-xs text-text-primary focus:outline-none focus:border-accent-blue placeholder:text-text-muted/50"
+                />
+              </div>
+
+              {/* Avatar Selection Options */}
+              <div>
+                <label className="block text-text-muted mb-2 font-medium">Avatar Customization</label>
+                
+                {/* Custom Sub-tabs */}
+                <div className="flex border-b border-border-default mb-4">
+                  {[
+                    { key: 'generator', label: 'Preset Generator' },
+                    { key: 'upload', label: 'Upload File' },
+                    { key: 'url', label: 'Direct Image URL' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => {
+                        setAvatarOption(tab.key);
+                        if (tab.key === 'generator') {
+                          setEditAvatarUrl(`https://api.dicebear.com/7.x/${dicebearStyle}/svg?seed=${encodeURIComponent(dicebearSeed)}`);
+                        }
+                      }}
+                      className={`flex-1 pb-2 font-medium text-center border-b-2 transition-colors cursor-pointer text-xs ${
+                        avatarOption === tab.key 
+                          ? 'border-accent-blue text-accent-blue' 
+                          : 'border-transparent text-text-muted hover:text-text-secondary'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tab contents */}
+                {avatarOption === 'generator' && (
+                  <div className="space-y-4 p-4 bg-bg-app/40 rounded-lg border border-border-default">
+                    <div className="flex gap-4 items-center">
+                      <img 
+                        src={`https://api.dicebear.com/7.x/${dicebearStyle}/svg?seed=${encodeURIComponent(dicebearSeed)}`} 
+                        alt="Dicebear preview" 
+                        className="w-16 h-16 rounded-lg bg-bg-elevated border border-border-default p-1"
+                      />
+                      <div className="flex-1 space-y-3">
+                        <div>
+                          <label className="block text-[10px] text-text-muted mb-1 font-semibold uppercase tracking-wider">Style variant</label>
+                          <select
+                            value={dicebearStyle}
+                            onChange={(e) => {
+                              const style = e.target.value;
+                              setDicebearStyle(style);
+                              setEditAvatarUrl(`https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(dicebearSeed)}`);
+                            }}
+                            className="w-full bg-bg-app border border-border-default p-2 rounded-lg text-xs text-text-primary focus:outline-none focus:border-accent-blue"
+                          >
+                            <option value="bottts">Robots (Bottts)</option>
+                            <option value="pixel-art">Pixel Art</option>
+                            <option value="lorelei">Lorelei (Cute Characters)</option>
+                            <option value="avataaars">Avataaars (People)</option>
+                            <option value="identicon">Identicon (Abstract)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-text-muted mb-1 font-semibold uppercase tracking-wider">Seed Input (Changes avatar dynamically)</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={dicebearSeed}
+                          onChange={(e) => {
+                            const seed = e.target.value;
+                            setDicebearSeed(seed);
+                            setEditAvatarUrl(`https://api.dicebear.com/7.x/${dicebearStyle}/svg?seed=${encodeURIComponent(seed)}`);
+                          }}
+                          className="flex-1 bg-bg-app border border-border-default p-2.5 rounded-lg text-xs text-text-primary focus:outline-none focus:border-accent-blue"
+                          placeholder="Type anything to morph..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const randSeed = Math.random().toString(36).substring(7);
+                            setDicebearSeed(randSeed);
+                            setEditAvatarUrl(`https://api.dicebear.com/7.x/${dicebearStyle}/svg?seed=${encodeURIComponent(randSeed)}`);
+                          }}
+                          className="px-3 bg-bg-elevated hover:bg-hover-bg border border-border-default text-text-secondary hover:text-text-primary rounded-lg transition-colors cursor-pointer text-xs font-mono"
+                        >
+                          Randomize
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {avatarOption === 'upload' && (
+                  <div className="space-y-4 p-4 bg-bg-app/40 rounded-lg border border-border-default">
+                    <div className="flex gap-4 items-center">
+                      <img 
+                        src={editAvatarUrl.startsWith('data:image/') || editAvatarUrl.startsWith('http') ? editAvatarUrl : `https://api.dicebear.com/7.x/bottts/svg?seed=preview`} 
+                        alt="Upload preview" 
+                        className="w-16 h-16 rounded-lg bg-bg-elevated border border-border-default object-cover p-1"
+                      />
+                      <div className="flex-1">
+                        <label className="block text-[10px] text-text-muted mb-1.5 font-semibold uppercase tracking-wider">Select Image File</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="w-full text-xs text-text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-border-default file:text-xs file:font-mono file:bg-bg-elevated file:text-accent-blue hover:file:bg-hover-bg file:cursor-pointer"
+                        />
+                        <span className="block text-[9px] text-text-muted mt-1.5">Supports PNG, JPG, WEBP, GIF (Max 2MB)</span>
+                        {uploadError && <span className="block text-[10px] text-accent-danger mt-1 font-semibold">{uploadError}</span>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {avatarOption === 'url' && (
+                  <div className="space-y-4 p-4 bg-bg-app/40 rounded-lg border border-border-default">
+                    <div className="flex gap-4 items-center">
+                      <img 
+                        src={editAvatarUrl.startsWith('http') ? editAvatarUrl : `https://api.dicebear.com/7.x/bottts/svg?seed=preview`} 
+                        alt="URL preview" 
+                        className="w-16 h-16 rounded-lg bg-bg-elevated border border-border-default object-cover p-1"
+                        onError={(e) => {
+                          (e.target as any).src = `https://api.dicebear.com/7.x/bottts/svg?seed=preview`;
+                        }}
+                      />
+                      <div className="flex-1">
+                        <label className="block text-[10px] text-text-muted mb-1.5 font-semibold uppercase tracking-wider">Image Address Link</label>
+                        <input
+                          type="url"
+                          placeholder="https://example.com/avatar.png"
+                          value={editAvatarUrl.startsWith('data:image/') ? '' : editAvatarUrl}
+                          onChange={(e) => setEditAvatarUrl(e.target.value)}
+                          className="w-full bg-bg-app border border-border-default p-2.5 rounded-lg text-xs text-text-primary focus:outline-none focus:border-accent-blue placeholder:text-text-muted/50"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-3 border-t border-border-default">
+                <button
+                  type="button"
+                  disabled={isSaving || !!uploadError}
+                  onClick={handleSaveProfile}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-accent-blue hover:bg-accent-blue/90 disabled:opacity-50 text-white font-medium py-2 rounded-lg transition-colors cursor-pointer text-xs font-mono"
+                >
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-bg-elevated hover:bg-hover-bg border border-border-default text-text-secondary hover:text-text-primary py-2 rounded-lg transition-colors cursor-pointer text-xs font-mono"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
