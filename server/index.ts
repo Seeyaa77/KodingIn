@@ -30,7 +30,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 // Root API Endpoint
 app.get('/api', (req: Request, res: Response) => {
-  res.json({ status: "online", system: "Kodingku API Gateway v1.0" });
+  res.json({ status: "online", system: "Kodingin API Gateway v1.0" });
 });
 
 // 1. Scrape GitHub Repository Metadata
@@ -116,7 +116,7 @@ app.get('/api/scrape-github', async (req: Request, res: Response, next: NextFunc
         try {
           const apiRes = await axios.get(`https://api.github.com/repos/${owner}/${cleanRepo}`, {
             timeout: 5000,
-            headers: { 'User-Agent': 'Kodingku-Agent-App' }
+            headers: { 'User-Agent': 'Kodingin-Agent-App' }
           });
           const apiData = apiRes.data;
           
@@ -150,7 +150,7 @@ app.get('/api/scrape-github', async (req: Request, res: Response, next: NextFunc
       // Direct API Call fallback if website blocks or scrapes fail
       const apiRes = await axios.get(`https://api.github.com/repos/${owner}/${cleanRepo}`, {
         timeout: 5000,
-        headers: { 'User-Agent': 'Kodingku-Agent-App' }
+        headers: { 'User-Agent': 'Kodingin-Agent-App' }
       });
       const apiData = apiRes.data;
 

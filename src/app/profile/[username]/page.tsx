@@ -1,7 +1,7 @@
 "use client";
 
 import React, { use, useState, useMemo } from 'react';
-import { useKodingku } from '@/context/KodingkuContext';
+import { useKodingin } from '@/context/KodinginContext';
 import Link from 'next/link';
 import { ArrowLeft, Trash2, Plus, MessageSquare, ArrowUp, ArrowDown, AlertCircle, Shield, ExternalLink, Pencil, Check, X } from 'lucide-react';
 import { supabase, isMock } from '@/lib/supabase';
@@ -33,7 +33,7 @@ interface ProfilePageProps { params: Promise<{ username: string }>; }
 
 export default function ProfileDetail({ params }: ProfilePageProps) {
   const { username } = use(params);
-  const { currentUser, users, threads, replies, voteThread } = useKodingku();
+  const { currentUser, users, threads, replies, voteThread } = useKodingin();
   const [newBadge, setNewBadge] = useState('');
   const [editingSocials, setEditingSocials] = useState(false);
   const [socialGithub, setSocialGithub] = useState('');

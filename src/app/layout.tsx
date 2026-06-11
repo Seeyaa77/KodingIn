@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { KodingkuProvider } from "@/context/KodingkuContext";
+import { KodinginProvider } from "@/context/KodinginContext";
 import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
@@ -17,10 +17,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full bg-bg-app text-text-primary font-sans flex flex-col">
-        <KodingkuProvider>
+        <KodinginProvider>
           <Navbar />
           {children}
-        </KodingkuProvider>
+        </KodinginProvider>
       </body>
     </html>
   );

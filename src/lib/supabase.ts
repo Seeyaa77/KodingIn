@@ -11,21 +11,21 @@ const isClient = typeof window !== 'undefined';
 
 // Initialize localStorage with seed data if empty (for local emulator/mock fallback)
 if (isClient) {
-  if (!localStorage.getItem('kodingku_users')) {
-    localStorage.setItem('kodingku_users', JSON.stringify(initialUsers));
+  if (!localStorage.getItem('kodingin_users')) {
+    localStorage.setItem('kodingin_users', JSON.stringify(initialUsers));
   }
-  if (!localStorage.getItem('kodingku_threads')) {
-    localStorage.setItem('kodingku_threads', JSON.stringify(initialThreads));
+  if (!localStorage.getItem('kodingin_threads')) {
+    localStorage.setItem('kodingin_threads', JSON.stringify(initialThreads));
   }
-  if (!localStorage.getItem('kodingku_replies')) {
-    localStorage.setItem('kodingku_replies', JSON.stringify(initialReplies));
+  if (!localStorage.getItem('kodingin_replies')) {
+    localStorage.setItem('kodingin_replies', JSON.stringify(initialReplies));
   }
-  if (!localStorage.getItem('kodingku_votes')) {
-    localStorage.setItem('kodingku_votes', JSON.stringify([]));
+  if (!localStorage.getItem('kodingin_votes')) {
+    localStorage.setItem('kodingin_votes', JSON.stringify([]));
   }
-  if (!localStorage.getItem('kodingku_current_user_id')) {
+  if (!localStorage.getItem('kodingin_current_user_id')) {
     // Default logged in user: dan_react (user-2)
-    localStorage.setItem('kodingku_current_user_id', 'user-2');
+    localStorage.setItem('kodingin_current_user_id', 'user-2');
   }
 }
 
@@ -216,10 +216,10 @@ export class MockSupabaseClient {
   auth = {
     getUser: async () => {
       if (!isClient) return { data: { user: null }, error: null };
-      const userId = localStorage.getItem('kodingku_current_user_id');
+      const userId = localStorage.getItem('kodingin_current_user_id');
       if (!userId) return { data: { user: null }, error: null };
       
-      const users = this.getStorage<UserProfile>('kodingku_users');
+      const users = this.getStorage<UserProfile>('kodingin_users');
       const userProfile = users.find(u => u.id === userId) || null;
       if (!userProfile) return { data: { user: null }, error: null };
 
@@ -227,7 +227,7 @@ export class MockSupabaseClient {
         data: {
           user: {
             id: userProfile.id,
-            email: `${userProfile.username}@kodingku.dev`,
+            email: `${userProfile.username}@kodingin.dev`,
             user_metadata: {
               username: userProfile.username,
               display_name: userProfile.displayName,
@@ -246,15 +246,15 @@ export class MockSupabaseClient {
     signInWithOAuth: async (provider: string) => {
       console.log(`Mocking OAuth login via ${provider}`);
       if (isClient) {
-        // Change user to user-3 (kodingku_dev)
-        localStorage.setItem('kodingku_current_user_id', 'user-3');
+        // Change user to user-3 (kodingin_dev)
+        localStorage.setItem('kodingin_current_user_id', 'user-3');
       }
       return { data: { provider }, error: null };
     },
 
     signOut: async () => {
       if (isClient) {
-        localStorage.removeItem('kodingku_current_user_id');
+        localStorage.removeItem('kodingin_current_user_id');
       }
       return { error: null };
     },
@@ -262,14 +262,14 @@ export class MockSupabaseClient {
     // Mock switching user for testing different accounts/roles in demo
     switchUser: (userId: string) => {
       if (isClient) {
-        localStorage.setItem('kodingku_current_user_id', userId);
+        localStorage.setItem('kodingin_current_user_id', userId);
         broadcastToChannel('auth_state_change', userId);
       }
     },
 
     registerUser: (username: string, displayName: string, techStack: string[]) => {
       if (!isClient) return null;
-      const users = this.getStorage<UserProfile>('kodingku_users');
+      const users = this.getStorage<UserProfile>('kodingin_users');
       const exists = users.find(u => u.username === username);
       if (exists) return exists;
 
@@ -286,8 +286,8 @@ export class MockSupabaseClient {
       };
 
       users.push(newUser);
-      this.setStorage('kodingku_users', users);
-      localStorage.setItem('kodingku_current_user_id', newUser.id);
+      this.setStorage('kodingin_users', users);
+      localStorage.setItem('kodingin_current_user_id', newUser.id);
       broadcastToChannel('auth_state_change', newUser.id);
       return newUser;
     }
@@ -299,10 +299,10 @@ export class MockSupabaseClient {
     let storeKey = '';
     
     switch (table) {
-      case 'users': storeKey = 'kodingku_users'; break;
-      case 'threads': storeKey = 'kodingku_threads'; break;
-      case 'replies': storeKey = 'kodingku_replies'; break;
-      case 'votes': storeKey = 'kodingku_votes'; break;
+      case 'users': storeKey = 'kodingin_users'; break;
+      case 'threads': storeKey = 'kodingin_threads'; break;
+      case 'replies': storeKey = 'kodingin_replies'; break;
+      case 'votes': storeKey = 'kodingin_votes'; break;
       default: storeKey = table;
     }
 
@@ -312,13 +312,13 @@ export class MockSupabaseClient {
         
         // Attach authors if selecting threads or replies
         if (table === 'threads') {
-          const users = client.getStorage<UserProfile>('kodingku_users');
+          const users = client.getStorage<UserProfile>('kodingin_users');
           items = items.map(item => ({
             ...item,
             author: users.find(u => u.id === item.userId) || null
           }));
         } else if (table === 'replies') {
-          const users = client.getStorage<UserProfile>('kodingku_users');
+          const users = client.getStorage<UserProfile>('kodingin_users');
           items = items.map(item => ({
             ...item,
             author: users.find(u => u.id === item.userId) || null
@@ -374,14 +374,14 @@ export class MockSupabaseClient {
             client.adjustReputation(newRecord.userId, 15);
           }
           
-          const users = client.getStorage<UserProfile>('kodingku_users');
+          const users = client.getStorage<UserProfile>('kodingin_users');
           newRecord.author = users.find(u => u.id === newRecord.userId);
           
           broadcastToChannel('threads_changed', { type: 'INSERT', record: newRecord });
         }
 
         if (table === 'replies') {
-          const users = client.getStorage<UserProfile>('kodingku_users');
+          const users = client.getStorage<UserProfile>('kodingin_users');
           newRecord.author = users.find(u => u.id === newRecord.userId);
           
           broadcastToChannel('replies_changed', { type: 'INSERT', record: newRecord });
@@ -474,8 +474,8 @@ export class MockSupabaseClient {
   async vote(userId: string, threadId: string, type: 'up' | 'down') {
     if (!isClient) return { error: 'Not on client' };
 
-    const votes = this.getStorage<Vote>('kodingku_votes');
-    const threads = this.getStorage<Thread>('kodingku_threads');
+    const votes = this.getStorage<Vote>('kodingin_votes');
+    const threads = this.getStorage<Thread>('kodingin_threads');
     
     const threadIndex = threads.findIndex(t => t.id === threadId);
     if (threadIndex === -1) return { error: 'Thread not found' };
@@ -519,14 +519,14 @@ export class MockSupabaseClient {
     }
 
     threads[threadIndex] = thread;
-    this.setStorage('kodingku_threads', threads);
-    this.setStorage('kodingku_votes', votes);
+    this.setStorage('kodingin_threads', threads);
+    this.setStorage('kodingin_votes', votes);
 
     if (thread.userId !== userId && reputationDiff !== 0) {
       await this.adjustReputation(thread.userId, reputationDiff);
     }
 
-    const users = this.getStorage<UserProfile>('kodingku_users');
+    const users = this.getStorage<UserProfile>('kodingin_users');
     thread.author = users.find(u => u.id === thread.userId);
     broadcastToChannel('threads_changed', { type: 'UPDATE', record: thread });
 
@@ -534,7 +534,7 @@ export class MockSupabaseClient {
   }
 
   async adjustReputation(userId: string, diff: number) {
-    const users = this.getStorage<UserProfile>('kodingku_users');
+    const users = this.getStorage<UserProfile>('kodingin_users');
     const userIndex = users.findIndex(u => u.id === userId);
     if (userIndex === -1) return;
 
@@ -555,9 +555,9 @@ export class MockSupabaseClient {
     }
 
     users[userIndex] = user;
-    this.setStorage('kodingku_users', users);
+    this.setStorage('kodingin_users', users);
 
-    if (isClient && localStorage.getItem('kodingku_current_user_id') === userId) {
+    if (isClient && localStorage.getItem('kodingin_current_user_id') === userId) {
       broadcastToChannel('auth_state_change', userId);
     }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useKodingku } from '@/context/KodingkuContext';
+import { useKodingin } from '@/context/KodinginContext';
 import Link from 'next/link';
 import { isMock, supabase } from '@/lib/supabase';
 import { Plus, ArrowUp, ArrowDown, MessageSquare, X, Eye, EyeOff, ShieldAlert, Flame, Clock, HelpCircle, ChevronRight, TrendingUp, Users, FileText, Award, CheckCircle2, Image as ImageIcon, Bold, Italic, Heading, Link as LinkIcon, Code, Braces, Quote, List, BookOpen } from 'lucide-react';
@@ -35,7 +35,7 @@ function stripMarkdown(md: string): string {
 }
 
 export default function Home() {
-  const { currentUser, users, threads, replies, voteThread, createThread, switchUserProfile, registerUserProfile, activeTagFilter, setActiveTagFilter, searchQuery, logout } = useKodingku();
+  const { currentUser, users, threads, replies, voteThread, createThread, switchUserProfile, registerUserProfile, activeTagFilter, setActiveTagFilter, searchQuery, logout } = useKodingin();
 
   const [showModal, setShowModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -43,7 +43,7 @@ export default function Home() {
   const [newGithub, setNewGithub] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>(['Showcase']);
   const [includeSandbox, setIncludeSandbox] = useState(false);
-  const [sandboxHtml, setSandboxHtml] = useState('<h1>Hello Kodingku</h1>');
+  const [sandboxHtml, setSandboxHtml] = useState('<h1>Hello Kodingin</h1>');
   const [sandboxCss, setSandboxCss] = useState('h1 { color: #3b82f6; }');
   const [sandboxJs, setSandboxJs] = useState('');
   const [editorTab, setEditorTab] = useState<'write'|'preview'>('write');
@@ -363,7 +363,7 @@ export default function Home() {
           <section className="p-4 bg-bg-card card-border rounded-xl">
             <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">About</h3>
             <div className="text-xs text-text-muted space-y-2 leading-relaxed">
-              <p>Kodingku supports Markdown in threads. Tutorial posts tagged <span className="text-accent-success font-medium">#Tutor</span> earn <span className="text-accent-success font-medium">+15 pts</span>.</p>
+              <p>Kodingin supports Markdown in threads. Tutorial posts tagged <span className="text-accent-success font-medium">#Tutor</span> earn <span className="text-accent-success font-medium">+15 pts</span>.</p>
               <p>Upvotes grant <span className="text-accent-success font-medium">+10 pts</span>, downvotes subtract <span className="text-accent-danger font-medium">-2 pts</span>.</p>
             </div>
           </section>

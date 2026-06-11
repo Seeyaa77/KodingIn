@@ -5,7 +5,7 @@ import { UserProfile, Thread, Reply } from '../lib/mockData';
 import { supabase, isMock, subscribeToChannel, mapUser, mapThread, mapReply, supabaseMock } from '../lib/supabase';
 import { ShieldCheck, Award } from 'lucide-react';
 
-interface KodingkuContextType {
+interface KodinginContextType {
   currentUser: (UserProfile & { role?: 'user' | 'admin' }) | null;
   users: UserProfile[];
   threads: Thread[];
@@ -24,9 +24,9 @@ interface KodingkuContextType {
   markReplyAsSolved: (threadId: string, replyId: string | null) => Promise<void>;
 }
 
-const KodingkuContext = createContext<KodingkuContextType | undefined>(undefined);
+const KodinginContext = createContext<KodinginContextType | undefined>(undefined);
 
-export function KodingkuProvider({ children }: { children: React.ReactNode }) {
+export function KodinginProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<(UserProfile & { role?: 'user' | 'admin' }) | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -125,7 +125,7 @@ export function KodingkuProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error) {
-      console.error("Error refreshing Kodingku data:", error);
+      console.error("Error refreshing Kodingin data:", error);
     }
   };
 
@@ -343,7 +343,7 @@ export function KodingkuProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <KodingkuContext.Provider value={{
+    <KodinginContext.Provider value={{
       currentUser,
       users,
       threads,
@@ -378,14 +378,14 @@ export function KodingkuProvider({ children }: { children: React.ReactNode }) {
           </p>
         </div>
       )}
-    </KodingkuContext.Provider>
+    </KodinginContext.Provider>
   );
 }
 
-export function useKodingku() {
-  const context = useContext(KodingkuContext);
+export function useKodingin() {
+  const context = useContext(KodinginContext);
   if (context === undefined) {
-    throw new Error('useKodingku must be used within a KodingkuProvider');
+    throw new Error('useKodingin must be used within a KodinginProvider');
   }
   return context;
 }

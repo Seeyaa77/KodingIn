@@ -2,13 +2,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { useKodingku } from '@/context/KodingkuContext';
+import { useKodingin } from '@/context/KodinginContext';
 import { isMock } from '@/lib/supabase';
 import { Search, LogOut, User, Award, Shield, ChevronDown, Check, LogIn, UserPlus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function Navbar() {
-  const { currentUser, users, switchUserProfile, registerUserProfile, searchQuery, setSearchQuery, logout } = useKodingku();
+  const { currentUser, users, switchUserProfile, registerUserProfile, searchQuery, setSearchQuery, logout } = useKodingin();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showRegForm, setShowRegForm] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

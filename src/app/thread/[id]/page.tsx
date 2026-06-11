@@ -1,7 +1,7 @@
 "use client";
 
 import React, { use, useState } from 'react';
-import { useKodingku } from '@/context/KodingkuContext';
+import { useKodingin } from '@/context/KodinginContext';
 import Link from 'next/link';
 import { ArrowLeft, ArrowUp, ArrowDown, AlertCircle, CheckCircle2 } from 'lucide-react';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
@@ -14,7 +14,7 @@ interface ThreadPageProps { params: Promise<{ id: string }>; }
 
 export default function ThreadDetail({ params }: ThreadPageProps) {
   const { id } = use(params);
-  const { currentUser, threads, replies, voteThread, createReply, markReplyAsSolved } = useKodingku();
+  const { currentUser, threads, replies, voteThread, createReply, markReplyAsSolved } = useKodingin();
   const [revealedNSFC, setRevealedNSFC] = useState(false);
 
   const thread = threads.find(t => t.id === id);

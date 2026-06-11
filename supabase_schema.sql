@@ -1,4 +1,4 @@
--- Kodingku Database Schema Migration Script (Supabase SQL Editor)
+-- Kodingin Database Schema Migration Script (Supabase SQL Editor)
 -- Run this script in your Supabase SQL Editor to provision tables, triggers, and RLS policies.
 
 -- Enable UUID extension if not enabled
@@ -109,7 +109,7 @@ BEGIN
   v_avatar_url := 'https://api.dicebear.com/7.x/bottts/svg?seed=' || v_username;
 
   -- Determine role
-  IF v_username = 'kodingku_admin' OR NEW.email LIKE '%admin%' OR NEW.raw_user_meta_data->>'role' = 'admin' THEN
+  IF v_username = 'kodingin_admin' OR NEW.email LIKE '%admin%' OR NEW.raw_user_meta_data->>'role' = 'admin' THEN
     v_role := 'admin'::public.user_role;
   ELSE
     v_role := 'user'::public.user_role;
@@ -318,7 +318,7 @@ BEGIN
     v_avatar_url := 'https://api.dicebear.com/7.x/bottts/svg?seed=' || v_username;
 
     -- Determine role
-    IF v_username = 'kodingku_admin' OR usr.email LIKE '%admin%' OR usr.raw_user_meta_data->>'role' = 'admin' THEN
+    IF v_username = 'kodingin_admin' OR usr.email LIKE '%admin%' OR usr.raw_user_meta_data->>'role' = 'admin' THEN
       v_role := 'admin'::public.user_role;
     ELSE
       v_role := 'user'::public.user_role;

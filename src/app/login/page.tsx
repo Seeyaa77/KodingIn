@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useKodingku } from '@/context/KodingkuContext';
+import { useKodingin } from '@/context/KodinginContext';
 import { supabase, isMock } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { X, Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -9,7 +9,7 @@ import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { currentUser } = useKodingku();
+  const { currentUser } = useKodingin();
 
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
