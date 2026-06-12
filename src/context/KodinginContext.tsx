@@ -560,46 +560,41 @@ export function KodinginProvider({ children }: { children: React.ReactNode }) {
         const userFollowsReceiver = follows.some(f => f.followerId === currentUser.id && f.followingId === receiverId);
         const receiverFollowsUser = follows.some(f => f.followerId === receiverId && f.followingId === currentUser.id);
         const status = (userFollowsReceiver && receiverFollowsUser) ? 'accepted' : 'pending';
+        const convId = crypto.randomUUID();
 
         if (isMock) {
-          const newConv = {
+          await supabase.from('conversations').insert({
+            id: convId,
             status,
             createdAt: new Date().toISOString()
-          };
-          const { data: convData } = await supabase.from('conversations').insert(newConv);
-          const createdConv = convData?.[0];
-          if (!createdConv) throw new Error("Failed to create conversation in mock db");
+          });
           
-          activeConvId = createdConv.id;
-
           // Insert participants
           await supabase.from('conversation_participants').insert({
-            conversation_id: activeConvId,
+            conversation_id: convId,
             user_id: currentUser.id
           });
           await supabase.from('conversation_participants').insert({
-            conversation_id: activeConvId,
+            conversation_id: convId,
             user_id: receiverId
           });
         } else {
-          const { data: convData, error: convError } = await supabase
+          const { error: convError } = await supabase
             .from('conversations')
-            .insert({ status })
-            .select()
-            .single();
-          if (convError || !convData) throw convError || new Error("Failed to create conversation");
-
-          activeConvId = convData.id;
+            .insert({ id: convId, status });
+          if (convError) throw convError;
 
           // Insert participants
           const { error: partError } = await supabase
             .from('conversation_participants')
             .insert([
-              { conversation_id: activeConvId, user_id: currentUser.id },
-              { conversation_id: activeConvId, user_id: receiverId }
+              { conversation_id: convId, user_id: currentUser.id },
+              { conversation_id: convId, user_id: receiverId }
             ]);
           if (partError) throw partError;
         }
+
+        activeConvId = convId;
       } else {
         const targetConv = conversations.find(c => c.id === activeConvId);
         if (targetConv && targetConv.status === 'rejected') {

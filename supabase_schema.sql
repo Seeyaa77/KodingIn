@@ -394,6 +394,18 @@ FOR EACH ROW EXECUTE FUNCTION public.handle_thread_solution_change();
 -- FOLLOWS AND DIRECT MESSAGES SYSTEM (NEW)
 -- ----------------------------------------------------
 
+-- Helper function to fetch conversation ids for a user without RLS recursion
+CREATE OR REPLACE FUNCTION public.get_user_conversations(user_uuid UUID)
+RETURNS TABLE (conversation_id UUID) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT cp.conversation_id 
+  FROM public.conversation_participants cp
+  WHERE cp.user_id = user_uuid;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
 -- 1. Follows Table
 CREATE TABLE public.follows (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -431,23 +443,21 @@ ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow participant select conversation"
   ON public.conversations FOR SELECT
   USING (
-    EXISTS (
+    id IN (SELECT public.get_user_conversations(auth.uid())) OR
+    NOT EXISTS (
       SELECT 1 FROM public.conversation_participants cp
-      WHERE cp.conversation_id = id AND cp.user_id = auth.uid()
+      WHERE cp.conversation_id = id
     )
   );
 
 CREATE POLICY "Allow insert conversation"
   ON public.conversations FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
+  WITH CHECK (auth.uid() IS NOT NULL);
 
 CREATE POLICY "Allow update conversation status"
   ON public.conversations FOR UPDATE
   USING (
-    EXISTS (
-      SELECT 1 FROM public.conversation_participants cp
-      WHERE cp.conversation_id = id AND cp.user_id = auth.uid()
-    )
+    id IN (SELECT public.get_user_conversations(auth.uid()))
   );
 
 
@@ -464,15 +474,12 @@ ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow users to view participants in their conversations"
   ON public.conversation_participants FOR SELECT
   USING (
-    EXISTS (
-      SELECT 1 FROM public.conversation_participants cp
-      WHERE cp.conversation_id = conversation_id AND cp.user_id = auth.uid()
-    ) OR user_id = auth.uid()
+    conversation_id IN (SELECT public.get_user_conversations(auth.uid()))
   );
 
 CREATE POLICY "Allow participant registration"
   ON public.conversation_participants FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
+  WITH CHECK (auth.uid() IS NOT NULL);
 
 
 -- 4. Messages Table
@@ -490,20 +497,14 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow participants to read messages"
   ON public.messages FOR SELECT
   USING (
-    EXISTS (
-      SELECT 1 FROM public.conversation_participants cp
-      WHERE cp.conversation_id = conversation_id AND cp.user_id = auth.uid()
-    )
+    conversation_id IN (SELECT public.get_user_conversations(auth.uid()))
   );
 
 CREATE POLICY "Allow participants to send messages"
   ON public.messages FOR INSERT
   WITH CHECK (
     auth.uid() = sender_id AND
-    EXISTS (
-      SELECT 1 FROM public.conversation_participants cp
-      WHERE cp.conversation_id = conversation_id AND cp.user_id = auth.uid()
-    )
+    conversation_id IN (SELECT public.get_user_conversations(auth.uid()))
   );
 
 
