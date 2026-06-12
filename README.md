@@ -8,6 +8,7 @@ Platform media sharing khusus developer untuk berbagi proyek, diskusi Q&A, tutor
 * **Reputation (Bytes) System:** Poin reputasi otomatis berdasarkan kontribusi user (voting, tag `#Tutor`, dan penandaan solusi/solved).
 * **GitHub Repository Preview:** Otomatis merender info repository GitHub (bintang, fork, deskripsi) saat link di-paste.
 * **Q&A Solved:** Penulis thread dapat menandai balasan terbaik sebagai solusi (+15 Bytes reward untuk solver).
+* **Responsive Direct Messaging (Inbox):** Sistem pesan langsung (DM) responsif dengan antarmuka chat bubble modern, mendukung Markdown rendering, dan dilengkapi quick actions template (share code, apresiasi).
 
 ## Tech Stack
 * **Frontend:** Next.js (App Router), React, TypeScript, Custom CSS, Lucide Icons
