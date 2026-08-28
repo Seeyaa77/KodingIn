@@ -39,3 +39,5 @@ Buka [http://localhost:3000](http://localhost:3000) di browser Anda.
 
 ### 4. Database Setup (Opsional)
 Jika menggunakan live Supabase database, jalankan query dari berkas `supabase_schema.sql` di SQL Editor dashboard Supabase Anda.
+
+XoXo
