@@ -1,4 +1,4 @@
-# KodingInz
+# KodingIn
 
 Platform media sharing khusus developer untuk berbagi proyek, diskusi Q&A, tutorial, dan meme coding.
 
